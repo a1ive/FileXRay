@@ -1,0 +1,9 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Release" />
+    <Platform Name="x64" />
+    <Platform Name="Win32" />
+  </Configurations>
+  <Project Path="FileXRayFile/FileXRayFile.vcxproj" Id="1e39f7b4-e8cf-47af-9d6e-83e4f1dc9da9" />
+  <Project Path="FileXRay/FileXRay.vcxproj" Id="6349fd6a-27d6-4797-9080-4d9bdcbc23b9" />
+</Solution>

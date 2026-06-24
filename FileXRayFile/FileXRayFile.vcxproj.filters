@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="filetype.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="file\msvc\config.h">
+      <Filter>file\msvc</Filter>
+    </ClInclude>
+    <ClInclude Include="file\msvc\dirent.h">
+      <Filter>file\msvc</Filter>
+    </ClInclude>
+    <ClInclude Include="file\msvc\err.h">
+      <Filter>file\msvc</Filter>
+    </ClInclude>
+    <ClInclude Include="file\msvc\regex.h">
+      <Filter>file\msvc</Filter>
+    </ClInclude>
+    <ClInclude Include="file\msvc\unistd.h">
+      <Filter>file\msvc</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\cdf.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\der.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\elfclass.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\file.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\file_opts.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\tar.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\readelf.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\swap.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\mygetopt.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+    <ClInclude Include="file\src\magic.h">
+      <Filter>file\src</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="filetype.c" />
+    <ClCompile Include="file\msvc\libmagic_shim.c">
+      <Filter>file\msvc</Filter>
+    </ClCompile>
+    <ClCompile Include="file\msvc\regex.cpp">
+      <Filter>file\msvc</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\apprentice.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\apptype.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\ascmagic.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\buffer.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\cdf.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\cdf_time.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\compress.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\der.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\encoding.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\fsmagic.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\funcs.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\is_csv.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\is_json.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\is_simh.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\is_tar.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\print.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\readcdf.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\readelf.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\softmagic.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\swap.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+    <ClCompile Include="file\src\magic.c">
+      <Filter>file\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <None Include="magic\magic">
+      <Filter>magic</Filter>
+    </None>
+    <None Include="file\COPYING">
+      <Filter>file</Filter>
+    </None>
+    <None Include="file\README.md">
+      <Filter>file</Filter>
+    </None>
+    <None Include="magic\magic.mgc">
+      <Filter>magic</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="file">
+      <UniqueIdentifier>{d338be74-c2ab-43b3-bff3-15bcdcd19876}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="magic">
+      <UniqueIdentifier>{5e80428f-0712-479e-878a-ee04ad282104}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="file\msvc">
+      <UniqueIdentifier>{733d2217-32fb-4bcb-9375-6300c8fb8e7e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="file\src">
+      <UniqueIdentifier>{ca5e8bfd-574a-42fc-a346-7e0a174a596a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

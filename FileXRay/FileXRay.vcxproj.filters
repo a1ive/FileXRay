@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="pagectrl.c" />
+    <ClCompile Include="registration.c" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="hash.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pagectrl.h" />
+    <ClInclude Include="registration.h" />
+    <ClInclude Include="hash.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="version.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="FileXRay.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="FileXRay.def" />
+    <None Include="FileXRay.manifest" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="install.bat" />
+    <CopyFileToFolders Include="uninstall.bat" />
+  </ItemGroup>
+</Project>
