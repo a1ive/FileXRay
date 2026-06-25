@@ -123,6 +123,7 @@ static void fx_set_hash_controls_enabled(HWND hwnd, BOOL enabled)
 	EnableWindow(GetDlgItem(hwnd, IDC_HASH_CRC32), enabled);
 	EnableWindow(GetDlgItem(hwnd, IDC_HASH_CRC64), enabled);
 	EnableWindow(GetDlgItem(hwnd, IDC_HASH_SHA256), enabled);
+	EnableWindow(GetDlgItem(hwnd, IDC_HASH_SHA512), enabled);
 	EnableWindow(GetDlgItem(hwnd, IDC_HASH_START), enabled);
 }
 
@@ -151,7 +152,8 @@ static HRESULT fx_format_hash_text(FX_PAGE_STATE *state)
 		{ FX_HASH_SHA1, L"SHA1", state->hash_result.sha1 },
 		{ FX_HASH_CRC32, L"CRC32", state->hash_result.crc32 },
 		{ FX_HASH_CRC64, L"CRC64", state->hash_result.crc64 },
-		{ FX_HASH_SHA256, L"SHA256", state->hash_result.sha256 }
+		{ FX_HASH_SHA256, L"SHA256", state->hash_result.sha256 },
+		{ FX_HASH_SHA512, L"SHA512", state->hash_result.sha512 }
 	};
 
 	HRESULT hr = S_OK;
@@ -292,6 +294,8 @@ static void fx_begin_hash(HWND hwnd, FX_PAGE_STATE *state)
 		mask |= FX_HASH_CRC64;
 	if (IsDlgButtonChecked(hwnd, IDC_HASH_SHA256) == BST_CHECKED)
 		mask |= FX_HASH_SHA256;
+	if (IsDlgButtonChecked(hwnd, IDC_HASH_SHA512) == BST_CHECKED)
+		mask |= FX_HASH_SHA512;
 
 	if (mask == 0)
 	{
@@ -451,8 +455,11 @@ static void fx_layout_dialog(HWND hwnd)
 	int crc32_width;
 	int crc64_width;
 	int sha256_width;
+	int sha512_width;
 	int hash_column_1;
+	int hash_column_2_width;
 	int hash_column_2;
+	int hash_column_3_width;
 	int hash_column_3;
 	int button_width;
 	int button_height;
@@ -482,9 +489,12 @@ static void fx_layout_dialog(HWND hwnd)
 	crc32_width = fx_dlg_x(hwnd, 52);
 	crc64_width = fx_dlg_x(hwnd, 52);
 	sha256_width = fx_dlg_x(hwnd, 62);
+	sha512_width = fx_dlg_x(hwnd, 62);
 	hash_column_1 = field_x;
-	hash_column_2 = field_x + (content_width - sha1_width) / 2;
-	hash_column_3 = client_width - field_x - crc32_width;
+	hash_column_2_width = MAX(sha1_width, sha256_width);
+	hash_column_2 = field_x + (content_width - hash_column_2_width) / 2;
+	hash_column_3_width = MAX(crc32_width, sha512_width);
+	hash_column_3 = client_width - field_x - hash_column_3_width;
 	button_width = fx_dlg_x(hwnd, 60);
 	button_height = fx_dlg_y(hwnd, 14);
 
@@ -497,6 +507,7 @@ static void fx_layout_dialog(HWND hwnd)
 	fx_move_dlg_item(hwnd, IDC_HASH_CRC32, hash_column_3, fx_dlg_y(hwnd, 72), crc32_width, checkbox_height);
 	fx_move_dlg_item(hwnd, IDC_HASH_CRC64, hash_column_1, fx_dlg_y(hwnd, 86), crc64_width, checkbox_height);
 	fx_move_dlg_item(hwnd, IDC_HASH_SHA256, hash_column_2, fx_dlg_y(hwnd, 86), sha256_width, checkbox_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_SHA512, hash_column_3, fx_dlg_y(hwnd, 86), sha512_width, checkbox_height);
 	fx_move_dlg_item(hwnd, IDC_HASH_START, field_x, fx_dlg_y(hwnd, 102), button_width, button_height);
 	fx_move_dlg_item(hwnd, IDC_HASH_COPY, client_width - field_x - button_width, fx_dlg_y(hwnd, 102), button_width, button_height);
 	fx_move_dlg_item(hwnd, IDC_HASH_PROGRESS, field_x, fx_dlg_y(hwnd, 122), content_width, fx_dlg_y(hwnd, 10));

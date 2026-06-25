@@ -17,7 +17,7 @@ typedef struct FX_CNG_HASH
 	PUCHAR object;
 	DWORD object_length;
 	DWORD digest_length;
-	UCHAR digest[32];
+	UCHAR digest[64];
 } FX_CNG_HASH;
 
 static HRESULT fx_cng_init(FX_CNG_HASH *context, LPCWSTR algorithm_id)
@@ -191,7 +191,7 @@ static ULONGLONG fx_crc64_update(ULONGLONG crc, const ULONGLONG table[256], cons
 }
 
 static HRESULT fx_prepare_hashes(DWORD hash_mask, FX_CNG_HASH *md5,
-	FX_CNG_HASH *sha1, FX_CNG_HASH *sha256)
+	FX_CNG_HASH *sha1, FX_CNG_HASH *sha256, FX_CNG_HASH *sha512)
 {
 	HRESULT hr = S_OK;
 
@@ -213,13 +213,19 @@ static HRESULT fx_prepare_hashes(DWORD hash_mask, FX_CNG_HASH *md5,
 		if (FAILED(hr))
 			goto fail;
 	}
+	if ((hash_mask & FX_HASH_SHA512) != 0)
+	{
+		hr = fx_cng_init(sha512, BCRYPT_SHA512_ALGORITHM);
+		if (FAILED(hr))
+			goto fail;
+	}
 
 fail:
 	return hr;
 }
 
 static HRESULT fx_finish_hashes(DWORD hash_mask, FX_HASH_RESULT *result,
-	FX_CNG_HASH *md5, FX_CNG_HASH *sha1, FX_CNG_HASH *sha256,
+	FX_CNG_HASH *md5, FX_CNG_HASH *sha1, FX_CNG_HASH *sha256, FX_CNG_HASH *sha512,
 	DWORD crc32, ULONGLONG crc64)
 {
 	HRESULT hr = S_OK;
@@ -269,6 +275,16 @@ static HRESULT fx_finish_hashes(DWORD hash_mask, FX_HASH_RESULT *result,
 			goto fail;
 		result->completed_mask |= FX_HASH_SHA256;
 	}
+	if ((hash_mask & FX_HASH_SHA512) != 0)
+	{
+		hr = fx_cng_finish(sha512);
+		if (FAILED(hr))
+			goto fail;
+		hr = fx_hex_bytes(sha512->digest, sha512->digest_length, result->sha512, ARRAYSIZE(result->sha512));
+		if (FAILED(hr))
+			goto fail;
+		result->completed_mask |= FX_HASH_SHA512;
+	}
 
 fail:
 	return hr;
@@ -285,6 +301,7 @@ HRESULT fx_hash_file(const wchar_t *path, DWORD hash_mask, volatile LONG *cancel
 	FX_CNG_HASH md5;
 	FX_CNG_HASH sha1;
 	FX_CNG_HASH sha256;
+	FX_CNG_HASH sha512;
 	DWORD crc32_table[256];
 	ULONGLONG crc64_table[256];
 	DWORD crc32 = 0xffffffffUL;
@@ -293,6 +310,7 @@ HRESULT fx_hash_file(const wchar_t *path, DWORD hash_mask, volatile LONG *cancel
 	ZeroMemory(&md5, sizeof(md5));
 	ZeroMemory(&sha1, sizeof(sha1));
 	ZeroMemory(&sha256, sizeof(sha256));
+	ZeroMemory(&sha512, sizeof(sha512));
 
 	if (!path || !result || hash_mask == 0)
 		return E_INVALIDARG;
@@ -305,7 +323,7 @@ HRESULT fx_hash_file(const wchar_t *path, DWORD hash_mask, volatile LONG *cancel
 	if ((hash_mask & FX_HASH_CRC64) != 0)
 		fx_crc64_table(crc64_table);
 
-	hr = fx_prepare_hashes(hash_mask, &md5, &sha1, &sha256);
+	hr = fx_prepare_hashes(hash_mask, &md5, &sha1, &sha256, &sha512);
 	if (FAILED(hr))
 		goto fail;
 
@@ -369,6 +387,12 @@ HRESULT fx_hash_file(const wchar_t *path, DWORD hash_mask, volatile LONG *cancel
 			if (FAILED(hr))
 				goto fail;
 		}
+		if ((hash_mask & FX_HASH_SHA512) != 0)
+		{
+			hr = fx_cng_update(&sha512, buffer, bytes_read);
+			if (FAILED(hr))
+				goto fail;
+		}
 		if ((hash_mask & FX_HASH_CRC32) != 0)
 			crc32 = fx_crc32_update(crc32, crc32_table, buffer, bytes_read);
 		if ((hash_mask & FX_HASH_CRC64) != 0)
@@ -382,7 +406,7 @@ HRESULT fx_hash_file(const wchar_t *path, DWORD hash_mask, volatile LONG *cancel
 		}
 	}
 
-	hr = fx_finish_hashes(hash_mask, result, &md5, &sha1, &sha256, crc32, crc64);
+	hr = fx_finish_hashes(hash_mask, result, &md5, &sha1, &sha256, &sha512, crc32, crc64);
 	if (FAILED(hr))
 		goto fail;
 
@@ -397,6 +421,7 @@ fail:
 	fx_cng_destroy(&md5);
 	fx_cng_destroy(&sha1);
 	fx_cng_destroy(&sha256);
+	fx_cng_destroy(&sha512);
 
 	return hr;
 }

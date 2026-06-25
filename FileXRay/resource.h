@@ -12,6 +12,7 @@
 #define IDC_HASH_CRC32           1004
 #define IDC_HASH_CRC64           1005
 #define IDC_HASH_SHA256          1006
+#define IDC_HASH_SHA512          1016
 #define IDC_HASH_START           1007
 #define IDC_HASH_PROGRESS        1008
 #define IDC_HASH_RESULT          1009
