@@ -5,54 +5,131 @@
 #include "config.h"
 #include "resource.h"
 #include "magic.h"
+#include "zstd.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <io.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <strsafe.h>
 #include <wchar.h>
 
 static INIT_ONCE g_fx_magic_once = INIT_ONCE_STATIC_INIT;
 static CRITICAL_SECTION g_fx_magic_lock;
 static magic_t g_fx_magic;
+static void *g_fx_magic_mgc;
 static HRESULT g_fx_magic_hr = E_FAIL;
+
+static HRESULT decompress_magic_resource(const void *compressed_data, size_t compressed_size, void **magic_data, size_t *magic_size)
+{
+	HRESULT hr;
+	unsigned long long content_size;
+	size_t output_size;
+	size_t result;
+	void *output = NULL;
+
+	*magic_data = NULL;
+	*magic_size = 0;
+
+	content_size = ZSTD_getFrameContentSize(compressed_data, compressed_size);
+	if (content_size == ZSTD_CONTENTSIZE_ERROR || content_size == ZSTD_CONTENTSIZE_UNKNOWN)
+		return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+	if ((unsigned long long)(size_t)content_size != content_size)
+		return HRESULT_FROM_WIN32(ERROR_FILE_TOO_LARGE);
+
+	output_size = (size_t)content_size;
+	if (output_size == 0)
+		return HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
+
+	output = malloc(output_size);
+	if (!output)
+		return E_OUTOFMEMORY;
+
+	result = ZSTD_decompress(output, output_size, compressed_data, compressed_size);
+	if (ZSTD_isError(result) || result != output_size)
+	{
+		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+		goto fail;
+	}
+
+	*magic_data = output;
+	*magic_size = output_size;
+	output = NULL;
+	hr = S_OK;
+
+fail:
+	free(output);
+	return hr;
+}
 
 static HRESULT load_magic_resource(magic_t magic)
 {
+	HRESULT hr;
 	HMODULE module = NULL;
 	HRSRC resource;
 	HGLOBAL loaded_resource;
 	DWORD resource_size;
 	void *resource_data;
+	void *magic_data = NULL;
+	size_t magic_size;
 	void *buffers[1];
 	size_t sizes[1];
 
 	if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
 		(LPCWSTR)(const void*)&fx_filetype_describe_path, &module))
-		return HRESULT_FROM_WIN32(GetLastError());
+	{
+		hr = HRESULT_FROM_WIN32(GetLastError());
+		goto fail;
+	}
 
-	resource = FindResourceW(module, MAKEINTRESOURCEW(IDR_FILEXRAY_MAGIC_MGC), RT_RCDATA);
+	resource = FindResourceW(module, MAKEINTRESOURCEW(IDR_FILEXRAY_MAGIC_ZST), RT_RCDATA);
 	if (!resource)
-		return HRESULT_FROM_WIN32(GetLastError());
+	{
+		hr = HRESULT_FROM_WIN32(GetLastError());
+		goto fail;
+	}
 
 	resource_size = SizeofResource(module, resource);
 	if (resource_size == 0)
-		return HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
+	{
+		hr = HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
+		goto fail;
+	}
 
 	loaded_resource = LoadResource(module, resource);
 	if (!loaded_resource)
-		return HRESULT_FROM_WIN32(GetLastError());
+	{
+		hr = HRESULT_FROM_WIN32(GetLastError());
+		goto fail;
+	}
 
 	resource_data = LockResource(loaded_resource);
 	if (!resource_data)
-		return HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
+	{
+		hr = HRESULT_FROM_WIN32(ERROR_RESOURCE_DATA_NOT_FOUND);
+		goto fail;
+	}
 
-	buffers[0] = resource_data;
-	sizes[0] = resource_size;
+	hr = decompress_magic_resource(resource_data, (size_t)resource_size, &magic_data, &magic_size);
+	if (FAILED(hr))
+		goto fail;
+
+	buffers[0] = magic_data;
+	sizes[0] = magic_size;
 	if (magic_load_buffers(magic, buffers, sizes, ARRAYSIZE(buffers)) == -1)
-		return E_FAIL;
+	{
+		hr = E_FAIL;
+		goto fail;
+	}
 
-	return S_OK;
+	g_fx_magic_mgc = magic_data;
+	magic_data = NULL;
+	hr = S_OK;
+
+fail:
+	free(magic_data);
+	return hr;
 }
 
 static BOOL CALLBACK magic_init_once(PINIT_ONCE init_once, PVOID parameter, PVOID *context)
@@ -84,6 +161,11 @@ fail:
 	{
 		magic_close(g_fx_magic);
 		g_fx_magic = NULL;
+	}
+	if (g_fx_magic_mgc)
+	{
+		free(g_fx_magic_mgc);
+		g_fx_magic_mgc = NULL;
 	}
 	g_fx_magic_hr = hr;
 	return TRUE;
