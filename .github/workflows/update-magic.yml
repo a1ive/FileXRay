@@ -1,0 +1,157 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+name: Update magic database
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+      timezone: "Asia/Tokyo"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.repository.default_branch }}"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build magic database
+    runs-on: ubuntu-latest
+    outputs:
+      upstream-commit: ${{ steps.upstream.outputs.commit }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes autoconf automake build-essential libtool zstd
+
+      - name: Clone file/file
+        id: upstream
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/file/file.git "$RUNNER_TEMP/file"
+          commit="$(git -C "$RUNNER_TEMP/file" rev-parse HEAD)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check database format compatibility
+        run: |
+          set -euo pipefail
+          local_version="$(awk '$1 == "#define" && $2 == "VERSIONNO" { gsub(/\r$/, "", $3); print $3; exit }' FileXRayFile/file/src/file.h)"
+          upstream_version="$(awk '$1 == "#define" && $2 == "VERSIONNO" { print $3; exit }' "$RUNNER_TEMP/file/src/file.h")"
+          test -n "$local_version"
+          test -n "$upstream_version"
+          if [[ "$local_version" != "$upstream_version" ]]; then
+            echo "::error::magic.mgc format mismatch: FileXRay expects $local_version, file/file produces $upstream_version"
+            exit 1
+          fi
+
+      - name: Build magic database
+        working-directory: ${{ runner.temp }}/file
+        run: |
+          set -euo pipefail
+          autoreconf --force --install
+          ./configure --disable-shared --enable-static
+          make --directory=src magic.h
+          make --directory=src --jobs="$(nproc)" file
+          make --directory=magic magic.mgc
+
+      - name: Package and verify magic database
+        run: |
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/magic-artifact"
+          upstream_dir="$RUNNER_TEMP/file"
+          source_lf="$RUNNER_TEMP/magic-source"
+          mkdir --parents "$artifact_dir"
+          mapfile -t fragments < <(
+            cd "$upstream_dir/magic"
+            make --silent \
+              --eval='print-magic-fragments:;@printf "%s\n" $(MAGIC_FRAGMENTS)' \
+              print-magic-fragments
+          )
+          test "${#fragments[@]}" -gt 0
+          {
+            printf '# Generated from file/file magic fragments listed in magic/Makefile.am.\n'
+            printf '# Upstream: https://github.com/file/file\n'
+            printf '# Upstream license: FileXRayFile/file/COPYING.\n'
+            for fragment in "${fragments[@]}"; do
+              label="${fragment#../magic/}"
+              printf '\n#------------------------------------------------------------------------------\n'
+              printf '# %s\n' "$label"
+              printf '#------------------------------------------------------------------------------\n\n'
+              cat "$upstream_dir/magic/$fragment"
+            done
+          } > "$source_lf"
+          sed 's/$/\r/' "$source_lf" > "$artifact_dir/magic"
+          install --mode=0644 "$upstream_dir/magic/magic.mgc" "$artifact_dir/magic.mgc"
+          zstd --quiet --force --threads=0 -19 "$artifact_dir/magic.mgc" -o "$artifact_dir/magic.zst"
+          zstd --test "$artifact_dir/magic.zst"
+          cmp "$artifact_dir/magic.mgc" <(zstd --decompress --stdout "$artifact_dir/magic.zst")
+          "$upstream_dir/src/file" --brief --magic-file "$artifact_dir/magic.mgc" LICENSE
+          printf '%s\n' "${{ steps.upstream.outputs.commit }}" > "$artifact_dir/upstream-commit.txt"
+          (
+            cd "$artifact_dir"
+            sha256sum magic magic.mgc magic.zst > SHA256SUMS
+          )
+
+      - name: Upload magic artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: file-magic-${{ github.run_id }}
+          path: ${{ runner.temp }}/magic-artifact/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  update:
+    name: Update repository
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Download magic artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: file-magic-${{ github.run_id }}
+          path: ${{ runner.temp }}/magic-artifact
+
+      - name: Verify and install magic database
+        run: |
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/magic-artifact"
+          (
+            cd "$artifact_dir"
+            sha256sum --check SHA256SUMS
+          )
+          install --mode=0644 "$artifact_dir/magic" FileXRayFile/magic/magic
+          install --mode=0644 "$artifact_dir/magic.zst" FileXRayFile/magic/magic.zst
+
+      - name: Commit changes
+        env:
+          UPSTREAM_COMMIT: ${{ needs.build.outputs.upstream-commit }}
+        run: |
+          set -euo pipefail
+          git add -- FileXRayFile/magic/magic FileXRayFile/magic/magic.zst
+          if git diff --cached --quiet; then
+            echo "The magic database is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update magic database" -m "Upstream file/file commit: $UPSTREAM_COMMIT"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
