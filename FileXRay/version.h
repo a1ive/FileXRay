@@ -17,7 +17,7 @@
 #define FX_COPYRIGHT    "Copyright (c) 2026 A1ive"
 #define FX_FILEDESC     "FileXRay Shell Property Sheet Handler"
 
-#define FX_DLL          "FileXRay"
-#define FX_PRODUCT      FX_DLL
-#define FX_INTERNALNAME FX_DLL
-#define FX_ORIGINALNAME FX_DLL ".dll"
+#define FX_NAME         "FileXRay"
+#define FX_PRODUCT      FX_NAME
+#define FX_INTERNALNAME FX_NAME
+#define FX_ORIGINALNAME FX_NAME ".dll"

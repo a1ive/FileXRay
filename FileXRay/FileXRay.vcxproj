@@ -129,6 +129,8 @@
     <ResourceCompile Include="FileXRay.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\.github\workflows\msbuild.yml" />
+    <None Include="..\.github\workflows\update-magic.yml" />
     <None Include="FileXRay.def" />
     <None Include="FileXRay.manifest" />
     <CopyFileToFolders Include="install.bat">

@@ -20,9 +20,20 @@
     <None Include="FileXRay.def" />
     <None Include="FileXRay.manifest" />
     <None Include="packages.config" />
+    <None Include="..\.github\workflows\msbuild.yml">
+      <Filter>GitHub</Filter>
+    </None>
+    <None Include="..\.github\workflows\update-magic.yml">
+      <Filter>GitHub</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="install.bat" />
     <CopyFileToFolders Include="uninstall.bat" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="GitHub">
+      <UniqueIdentifier>{608b0960-84f0-49ed-b28f-8195509d62f5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+name: MSBuild
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOLUTION_FILE_PATH: .
+
+jobs:
+  build:
+    name: Build ${{ matrix.architecture }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x64
+            platform: x64
+          - architecture: x86
+            platform: Win32
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Restore NuGet packages
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+
+      - name: Build
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: |
+          msbuild /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} ${{env.SOLUTION_FILE_PATH}}
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $artifactDirectory = Join-Path $env:RUNNER_TEMP 'artifact'
+          New-Item -ItemType Directory -Path $artifactDirectory | Out-Null
+          Copy-Item -LiteralPath 'build\${{ matrix.platform }}\FileXRay.dll' -Destination $artifactDirectory
+          Copy-Item -LiteralPath 'FileXRay\install.bat' -Destination $artifactDirectory
+          Copy-Item -LiteralPath 'FileXRay\uninstall.bat' -Destination $artifactDirectory
+          Copy-Item -LiteralPath 'LICENSE' -Destination $artifactDirectory
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: FileXRay-${{ matrix.architecture }}
+          path: ${{ runner.temp }}\artifact
+          if-no-files-found: error
