@@ -32,7 +32,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: fsmagic.c,v 1.85 2022/12/26 17:31:14 christos Exp $")
+FILE_RCSID("@(#)$File: fsmagic.c,v 1.86 2026/06/28 23:25:49 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -66,6 +66,65 @@ FILE_RCSID("@(#)$File: fsmagic.c,v 1.85 2022/12/26 17:31:14 christos Exp $")
 # define minor(dev)  ((dev) & 0xff)
 #endif
 #undef HAVE_MAJOR
+
+
+struct vn {
+	uint32_t v;
+	const char *s;
+};
+static const struct vn sugid[] = {
+#ifdef S_ISUID
+	{ S_ISUID, "setuid" },
+#endif
+#ifdef S_ISGID
+	{ S_ISGID, "setgid" },
+#endif
+#ifdef S_ISVTX
+	{ S_ISVTX, "sticky" },
+#endif
+	{ 0, NULL },
+};
+#if HAVE_STRUCT_STAT_ST_FLAGS
+static const struct vn sflags[] = {
+#ifdef UF_NODUMP
+	{ UF_NODUMP, "unodump" },
+#endif
+#ifdef UF_IMMUTABLE
+	{ UF_IMMUTABLE, "uimmutable" },
+#endif
+#ifdef UF_APPEND
+	{ UF_APPEND, "uappend" },
+#endif
+#ifdef UF_OPAQUE
+	{ UF_OPAQUE, "uopaque" },
+#endif
+#ifdef UF_NOUNLINK
+	{ UF_NOUNLINK, "unounlink" },
+#endif
+#ifdef SF_ARCHIVED
+	{ SF_ARCHIVED, "sarchived" },
+#endif
+#ifdef SF_IMMUTABLE
+	{ SF_IMMUTABLE, "simmutable" },
+#endif
+#ifdef SF_APPEND
+	{ SF_APPEND, "sappend" },
+#endif
+#ifdef SF_NOUNLINK
+	{ SF_NOUNLINK, "snounlink" },
+#endif
+#ifdef SF_SNAPSHOT
+	{ SF_SNAPSHOT, "ssnapshot" },
+#endif
+#ifdef SF_LOG
+	{ SF_LOG, "slog" },
+#endif
+#ifdef SF_SNAPINVAL
+	{ SF_LOG, "ssnapinval" },
+#endif
+};
+#endif
+
 #ifdef	S_IFLNK
 file_private int
 bad_link(struct magic_set *ms, int err, char *buf)
@@ -102,10 +161,23 @@ handle_mime(struct magic_set *ms, int mime, const char *str)
 	return 0;
 }
 
+#define COMMA	((*did)++ ? ", " : "")
+
+static int
+pr_flags(struct magic_set *ms, uint32_t flag, const struct vn *nvlist,
+    size_t nvsize, int *did)
+{
+	for (size_t i = 0; i < nvsize; i++)
+		if (flag & nvlist[i].v)
+			if (file_printf(ms, "%s%s", nvlist[i].s, COMMA) == -1)
+				return -1;
+	return 0;
+}
+
 file_protected int
 file_fsmagic(struct magic_set *ms, const char *fn, struct stat *sb)
 {
-	int ret, did = 0;
+	int ret, didv = 0, *did;
 	int mime = ms->flags & MAGIC_MIME;
 	int silent = ms->flags & (MAGIC_APPLE|MAGIC_EXTENSION);
 #ifdef	S_IFLNK
@@ -113,11 +185,11 @@ file_fsmagic(struct magic_set *ms, const char *fn, struct stat *sb)
 	ssize_t nch;
 	struct stat tstatbuf;
 #endif
+	did = &didv;
 
 	if (fn == NULL)
 		return 0;
 
-#define COMMA	(did++ ? ", " : "")
 	/*
 	 * Fstat is cheaper but fails for files you don't have read perms on.
 	 * On 4.2BSD and similar systems, use lstat() to identify symlinks.
@@ -171,20 +243,13 @@ file_fsmagic(struct magic_set *ms, const char *fn, struct stat *sb)
 
 	ret = 1;
 	if (!mime && !silent) {
-#ifdef S_ISUID
-		if (sb->st_mode & S_ISUID)
-			if (file_printf(ms, "%ssetuid", COMMA) == -1)
-				return -1;
-#endif
-#ifdef S_ISGID
-		if (sb->st_mode & S_ISGID)
-			if (file_printf(ms, "%ssetgid", COMMA) == -1)
-				return -1;
-#endif
-#ifdef S_ISVTX
-		if (sb->st_mode & S_ISVTX)
-			if (file_printf(ms, "%ssticky", COMMA) == -1)
-				return -1;
+		if (pr_flags(ms, sb->st_mode, sugid, __arraycount(sugid),
+		    did) == -1)
+			return -1;
+#if HAVE_STRUCT_STAT_ST_FLAGS
+		if (pr_flags(ms, sb->st_flags, sflags, __arraycount(sflags),
+		    did) == -1)
+			return -1;
 #endif
 	}
 
