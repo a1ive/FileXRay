@@ -8,6 +8,7 @@
 #include "filetype.h"
 #include "hash.h"
 #include "resource.h"
+#include "extensions/extensions.h"
 
 #define FXM_HASH_PROGRESS (WM_APP + 40)
 #define FXM_HASH_COMPLETE (WM_APP + 41)
@@ -36,6 +37,8 @@ typedef struct FX_PAGE_STATE
 	volatile LONG running;
 	UINT dpi;
 	HFONT font;
+	const FX_EXTENSION_HANDLER *extension_handler;
+	void *extension_context;
 	DWORD hash_mask;
 	HRESULT hash_hr;
 	FX_HASH_RESULT hash_result;
@@ -52,11 +55,7 @@ typedef struct FX_HASH_TEXT_ITEM
 	PCWSTR value;
 } FX_HASH_TEXT_ITEM;
 
-typedef struct FX_EXTENSION_RULE
-{
-	PCWSTR extension;
-	UINT string_id;
-} FX_EXTENSION_RULE;
+static void fx_layout_dialog(HWND hwnd, FX_PAGE_STATE *state);
 
 static void fx_load_string_value(HINSTANCE instance, UINT id, WCHAR *buffer, size_t cch_buffer)
 {
@@ -361,8 +360,20 @@ static void fx_complete_hash(HWND hwnd, FX_PAGE_STATE *state)
 	}
 }
 
+static void fx_destroy_extension(FX_PAGE_STATE *state)
+{
+	if (!state->extension_handler)
+		return;
+
+	state->extension_handler->destroy(state->extension_context);
+	state->extension_handler = NULL;
+	state->extension_context = NULL;
+}
+
 static void fx_update_extension(HWND hwnd, FX_PAGE_STATE *state, PCWSTR path)
 {
+	const FX_EXTENSION_HANDLER *handler;
+	void *context = NULL;
 	PCWSTR extension;
 	HRESULT hr;
 
@@ -370,7 +381,19 @@ static void fx_update_extension(HWND hwnd, FX_PAGE_STATE *state, PCWSTR path)
 	if (FAILED(hr) || extension[0] == L'\0')
 		return;
 
-	SetDlgItemTextW(hwnd, IDC_EXTENSION_GROUP, extension);
+	handler = fx_extension_find(extension);
+	if (!handler)
+		return;
+
+	hr = handler->create(hwnd, path, &context);
+	if (hr != S_OK)
+		return;
+
+	state->extension_handler = handler;
+	state->extension_context = context;
+	SetDlgItemTextW(hwnd, IDC_EXTENSION_GROUP, handler->title);
+	ShowWindow(GetDlgItem(hwnd, IDC_EXTENSION_GROUP), SW_SHOW);
+	fx_layout_dialog(hwnd, state);
 }
 
 static UINT fx_get_window_dpi(HWND hwnd)
@@ -431,9 +454,10 @@ static inline void fx_move_dlg_item(HWND hwnd, int id, int x, int y, int width, 
 	MoveWindow(GetDlgItem(hwnd, id), x, y, width, height, TRUE);
 }
 
-static void fx_layout_dialog(HWND hwnd)
+static void fx_layout_dialog(HWND hwnd, FX_PAGE_STATE *state)
 {
 	RECT client;
+	RECT extension_bounds;
 	int client_width;
 	int client_height;
 	int outer_x;
@@ -447,8 +471,6 @@ static void fx_layout_dialog(HWND hwnd)
 	int hash_height;
 	int extension_y;
 	int extension_height;
-	int extension_text_y;
-	int extension_text_height;
 	int checkbox_height;
 	int md5_width;
 	int sha1_width;
@@ -480,8 +502,6 @@ static void fx_layout_dialog(HWND hwnd)
 	hash_height = fx_dlg_y(hwnd, 135);
 	extension_y = fx_dlg_y(hwnd, 194);
 	extension_height = MAX(fx_dlg_y(hwnd, 18), client_height - extension_y - outer_y);
-	extension_text_y = fx_dlg_y(hwnd, 203);
-	extension_text_height = MAX(fx_dlg_y(hwnd, 10), extension_y + extension_height - fx_dlg_y(hwnd, 6) - extension_text_y);
 
 	checkbox_height = fx_dlg_y(hwnd, 10);
 	md5_width = fx_dlg_x(hwnd, 42);
@@ -515,7 +535,14 @@ static void fx_layout_dialog(HWND hwnd)
 	fx_move_dlg_item(hwnd, IDC_HASH_RESULT, field_x, fx_dlg_y(hwnd, 148), content_width, fx_dlg_y(hwnd, 34));
 
 	fx_move_dlg_item(hwnd, IDC_EXTENSION_GROUP, outer_x, extension_y, group_width, extension_height);
-	fx_move_dlg_item(hwnd, IDC_EXTENSION_TEXT, field_x, extension_text_y, content_width, extension_text_height);
+	if (state && state->extension_handler)
+	{
+		extension_bounds.left = field_x;
+		extension_bounds.top = extension_y + fx_dlg_y(hwnd, 12);
+		extension_bounds.right = field_x + content_width;
+		extension_bounds.bottom = extension_y + extension_height - fx_dlg_y(hwnd, 7);
+		state->extension_handler->layout(state->extension_context, &extension_bounds);
+	}
 }
 
 static void fx_apply_dialog_dpi(HWND hwnd, FX_PAGE_STATE *state, UINT dpi)
@@ -540,7 +567,7 @@ static void fx_apply_dialog_dpi(HWND hwnd, FX_PAGE_STATE *state, UINT dpi)
 			DeleteObject(old_font);
 	}
 
-	fx_layout_dialog(hwnd);
+	fx_layout_dialog(hwnd, state);
 	InvalidateRect(hwnd, NULL, TRUE);
 }
 
@@ -585,7 +612,7 @@ static INT_PTR CALLBACK fx_page_dialog_proc(HWND hwnd, UINT message, WPARAM wpar
 		return TRUE;
 	}
 	case WM_SIZE:
-		fx_layout_dialog(hwnd);
+		fx_layout_dialog(hwnd, (FX_PAGE_STATE *)GetWindowLongPtrW(hwnd, DWLP_USER));
 		return TRUE;
 	case WM_DPICHANGED:
 	{
@@ -627,8 +654,9 @@ static INT_PTR CALLBACK fx_page_dialog_proc(HWND hwnd, UINT message, WPARAM wpar
 				fx_copy_text_to_clipboard(hwnd, state->hash_text);
 			return TRUE;
 		default:
-			return FALSE;
+			break;
 		}
+		break;
 	}
 	case FXM_HASH_PROGRESS:
 		SendDlgItemMessageW(hwnd, IDC_HASH_PROGRESS, PBM_SETPOS, wparam, 0);
@@ -646,14 +674,27 @@ static INT_PTR CALLBACK fx_page_dialog_proc(HWND hwnd, UINT message, WPARAM wpar
 		if (state)
 		{
 			InterlockedExchange(&state->cancel, 1);
+			fx_destroy_extension(state);
 			state->hwnd = NULL;
 			SetWindowLongPtrW(hwnd, DWLP_USER, 0);
 		}
 		return TRUE;
 	}
 	default:
-		return FALSE;
+		break;
 	}
+
+	{
+		FX_PAGE_STATE *state = (FX_PAGE_STATE *)GetWindowLongPtrW(hwnd, DWLP_USER);
+		LRESULT result;
+
+		if (state && state->extension_handler && state->extension_handler->message &&
+			state->extension_handler->message(state->extension_context, message, wparam,
+				lparam, &result))
+			return (INT_PTR)result;
+	}
+
+	return FALSE;
 }
 
 static UINT CALLBACK fx_page_callback(HWND hwnd, UINT message, LPPROPSHEETPAGEW page)

@@ -5,6 +5,12 @@
     <ClCompile Include="registration.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="hash.c" />
+    <ClCompile Include="extensions\efi.c">
+      <Filter>extensions</Filter>
+    </ClCompile>
+    <ClCompile Include="extensions\extensions.c">
+      <Filter>extensions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pagectrl.h" />
@@ -12,6 +18,9 @@
     <ClInclude Include="hash.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="version.h" />
+    <ClInclude Include="extensions\extensions.h">
+      <Filter>extensions</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FileXRay.rc" />
@@ -34,6 +43,9 @@
   <ItemGroup>
     <Filter Include="GitHub">
       <UniqueIdentifier>{608b0960-84f0-49ed-b28f-8195509d62f5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="extensions">
+      <UniqueIdentifier>{3f8ce6f8-3035-463e-ac0f-82432d17a72e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

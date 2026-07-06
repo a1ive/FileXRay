@@ -113,6 +113,8 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="extensions\efi.c" />
+    <ClCompile Include="extensions\extensions.c" />
     <ClCompile Include="pagectrl.c" />
     <ClCompile Include="registration.c" />
     <ClCompile Include="main.cpp" />
@@ -124,6 +126,7 @@
     <ClInclude Include="hash.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="version.h" />
+    <ClInclude Include="extensions\extensions.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FileXRay.rc" />

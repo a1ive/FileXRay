@@ -18,7 +18,6 @@
 #define IDC_HASH_RESULT          1009
 #define IDC_HASH_COPY            1010
 #define IDC_HASH_STATUS          1011
-#define IDC_EXTENSION_TEXT       1012
 #define IDC_FILE_GROUP           1013
 #define IDC_HASH_GROUP           1014
 #define IDC_EXTENSION_GROUP      1015
