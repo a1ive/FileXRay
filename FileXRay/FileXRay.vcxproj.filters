@@ -11,6 +11,9 @@
     <ClCompile Include="extensions\extensions.c">
       <Filter>extensions</Filter>
     </ClCompile>
+    <ClCompile Include="extensions\dll.c">
+      <Filter>extensions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pagectrl.h" />

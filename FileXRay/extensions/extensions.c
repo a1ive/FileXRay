@@ -5,6 +5,7 @@
 
 static const FX_EXTENSION_HANDLER *const fx_extension_handlers[] =
 {
+	&fx_extension_dll_handler,
 	&fx_extension_efi_handler,
 };
 
