@@ -8,6 +8,7 @@ static const FX_EXTENSION_HANDLER *const fx_extension_handlers[] =
 	&fx_extension_dll_handler,
 	&fx_extension_efi_handler,
 	&fx_extension_exe_handler,
+	&fx_extension_ico_handler,
 };
 
 const FX_EXTENSION_HANDLER *fx_extension_find(PCWSTR extension)
