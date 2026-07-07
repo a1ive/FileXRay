@@ -46,6 +46,12 @@
     <None Include="..\.github\workflows\update-magic.yml">
       <Filter>GitHub</Filter>
     </None>
+    <None Include="..\README.md">
+      <Filter>GitHub</Filter>
+    </None>
+    <None Include="..\LICENSE">
+      <Filter>GitHub</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="install.bat" />
