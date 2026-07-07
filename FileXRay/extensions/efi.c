@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later */
 #include "extensions.h"
+#include "../pe.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -21,55 +22,22 @@ typedef struct FX_EFI_VIEW
 	WCHAR *sbat;
 } FX_EFI_VIEW;
 
-static HRESULT fx_efi_format_image_base(const IMAGE_NT_HEADERS *nt, WCHAR *text, size_t cch)
+static HRESULT fx_efi_format_image_base(const FX_PE_IMAGE *image,
+	WCHAR *text, size_t cch)
 {
-	if (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-	{
-		const IMAGE_NT_HEADERS64 *nt64 = (const IMAGE_NT_HEADERS64 *)nt;
+	ULONGLONG base;
+	HRESULT hr;
 
+	hr = fx_pe_get_image_base(image, &base);
+	if (FAILED(hr))
+		return hr;
+
+	if (image->is_64bit)
 		return StringCchPrintfW(text, cch, L"0x%016llX",
-			(unsigned long long)nt64->OptionalHeader.ImageBase);
-	}
+			(unsigned long long)base);
 	else
-	{
-		const IMAGE_NT_HEADERS32 *nt32 = (const IMAGE_NT_HEADERS32 *)nt;
-
 		return StringCchPrintfW(text, cch, L"0x%08lX",
-			(unsigned long)nt32->OptionalHeader.ImageBase);
-	}
-}
-
-static HRESULT fx_efi_find_section(const IMAGE_NT_HEADERS *nt, const void *base,
-	size_t file_size, const char *name, const IMAGE_SECTION_HEADER **section)
-{
-	const IMAGE_SECTION_HEADER *sections;
-	size_t optional_offset;
-	size_t sections_offset;
-	WORD count;
-	WORD index;
-
-	*section = NULL;
-	optional_offset = (const BYTE *)&nt->OptionalHeader - (const BYTE *)base;
-	if (optional_offset > file_size ||
-		(size_t)nt->FileHeader.SizeOfOptionalHeader > file_size - optional_offset)
-		return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-
-	sections_offset = optional_offset + nt->FileHeader.SizeOfOptionalHeader;
-	count = nt->FileHeader.NumberOfSections;
-	if ((size_t)count > (file_size - sections_offset) / sizeof(IMAGE_SECTION_HEADER))
-		return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-
-	sections = (const IMAGE_SECTION_HEADER *)((const BYTE *)base + sections_offset);
-	for (index = 0; index < count; index++)
-	{
-		if (memcmp(sections[index].Name, name, IMAGE_SIZEOF_SHORT_NAME) == 0)
-		{
-			*section = &sections[index];
-			break;
-		}
-	}
-
-	return S_OK;
+			(unsigned long)base);
 }
 
 static HRESULT fx_efi_convert_sbat(const char *data, DWORD length, WCHAR **text)
@@ -142,8 +110,7 @@ fail:
 	return hr;
 }
 
-static HRESULT fx_efi_read_sbat(const void *base, size_t file_size,
-	const IMAGE_NT_HEADERS *nt, WCHAR **text)
+static HRESULT fx_efi_read_sbat(const FX_PE_IMAGE *image, WCHAR **text)
 {
 	const IMAGE_SECTION_HEADER *sbat;
 	const char *sbat_data;
@@ -155,17 +122,17 @@ static HRESULT fx_efi_read_sbat(const void *base, size_t file_size,
 	ZeroMemory(name, sizeof(name));
 	CopyMemory(name, ".sbat", 5);
 
-	hr = fx_efi_find_section(nt, base, file_size, name, &sbat);
+	hr = fx_pe_find_section(image, name, &sbat);
 	if (FAILED(hr) || !sbat)
 		return hr;
 
 	if (sbat->PointerToRawData == 0 || sbat->SizeOfRawData == 0)
 		return S_OK;
-	if ((size_t)sbat->PointerToRawData > file_size ||
-		(size_t)sbat->SizeOfRawData > file_size - sbat->PointerToRawData)
+	if ((size_t)sbat->PointerToRawData > image->file_size ||
+		(size_t)sbat->SizeOfRawData > image->file_size - sbat->PointerToRawData)
 		return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
 
-	sbat_data = (const char *)base + sbat->PointerToRawData;
+	sbat_data = (const char *)image->base + sbat->PointerToRawData;
 	actual_length = sbat->SizeOfRawData;
 	while (actual_length > 0 && sbat_data[actual_length - 1U] == '\0')
 		actual_length--;
@@ -178,113 +145,44 @@ static HRESULT fx_efi_read_sbat(const void *base, size_t file_size,
 
 static HRESULT fx_efi_load(PCWSTR path, FX_EFI_VIEW *view)
 {
-	HANDLE file = INVALID_HANDLE_VALUE;
-	HANDLE mapping = NULL;
-	const void *mapping_view = NULL;
-	const IMAGE_DOS_HEADER *dos;
-	const IMAGE_NT_HEADERS *nt;
+	FX_PE_IMAGE image;
 	LARGE_INTEGER file_size_value;
-	size_t file_size;
-	size_t nt_offset;
-	size_t optional_offset;
-	size_t image_base_end;
+	HANDLE file;
 	HRESULT hr;
 
-	file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
-		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	/*
+	 * EFI binaries are capped at 256 MiB to avoid mapping unreasonably
+	 * large files. Check the size before calling fx_pe_open.
+	 */
+	file = CreateFileW(path, GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL, NULL);
 	if (file == INVALID_HANDLE_VALUE)
-	{
-		hr = HRESULT_FROM_WIN32(GetLastError());
-		goto fail;
-	}
+		return HRESULT_FROM_WIN32(GetLastError());
 
-	if (!GetFileSizeEx(file, &file_size_value) || file_size_value.QuadPart == 0)
+	if (!GetFileSizeEx(file, &file_size_value) ||
+		file_size_value.QuadPart == 0)
 	{
-		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-		goto fail;
+		CloseHandle(file);
+		return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
 	}
 	if (file_size_value.QuadPart > (LONGLONG)(256ULL * 1024ULL * 1024ULL))
 	{
-		hr = HRESULT_FROM_WIN32(ERROR_FILE_TOO_LARGE);
-		goto fail;
-	}
-	file_size = (size_t)file_size_value.QuadPart;
-
-	mapping = CreateFileMappingW(file, NULL, PAGE_READONLY, 0, 0, NULL);
-	if (!mapping)
-	{
-		hr = HRESULT_FROM_WIN32(GetLastError());
-		goto fail;
-	}
-
-	mapping_view = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
-	if (!mapping_view)
-	{
-		hr = HRESULT_FROM_WIN32(GetLastError());
-		goto fail;
-	}
-
-	if (file_size < sizeof(IMAGE_DOS_HEADER))
-	{
-		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-		goto fail;
-	}
-
-	dos = (const IMAGE_DOS_HEADER *)mapping_view;
-	if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew < 0)
-	{
-		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-		goto fail;
-	}
-
-	nt_offset = (size_t)dos->e_lfanew;
-	if (nt_offset > file_size ||
-		offsetof(IMAGE_NT_HEADERS32, OptionalHeader) + sizeof(WORD) >
-			file_size - nt_offset)
-	{
-		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-		goto fail;
-	}
-
-	nt = (const IMAGE_NT_HEADERS *)((const BYTE *)mapping_view + nt_offset);
-	if (nt->Signature != IMAGE_NT_SIGNATURE)
-	{
-		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-		goto fail;
-	}
-
-	optional_offset = nt_offset + offsetof(IMAGE_NT_HEADERS32, OptionalHeader);
-	if (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-		image_base_end = offsetof(IMAGE_OPTIONAL_HEADER64, ImageBase) + sizeof(ULONGLONG);
-	else if (nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
-		image_base_end = offsetof(IMAGE_OPTIONAL_HEADER32, ImageBase) + sizeof(DWORD);
-	else
-	{
-		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-		goto fail;
-	}
-
-	if ((size_t)nt->FileHeader.SizeOfOptionalHeader < image_base_end ||
-		optional_offset > file_size || image_base_end > file_size - optional_offset)
-	{
-		hr = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-		goto fail;
-	}
-
-	hr = fx_efi_format_image_base(nt, view->base_address,
-		ARRAYSIZE(view->base_address));
-	if (FAILED(hr))
-		goto fail;
-
-	hr = fx_efi_read_sbat(mapping_view, file_size, nt, &view->sbat);
-
-fail:
-	if (mapping_view)
-		UnmapViewOfFile(mapping_view);
-	if (mapping)
-		CloseHandle(mapping);
-	if (file != INVALID_HANDLE_VALUE)
 		CloseHandle(file);
+		return HRESULT_FROM_WIN32(ERROR_FILE_TOO_LARGE);
+	}
+	CloseHandle(file);
+
+	hr = fx_pe_open(path, &image);
+	if (FAILED(hr))
+		return hr;
+
+	hr = fx_efi_format_image_base(&image, view->base_address,
+		ARRAYSIZE(view->base_address));
+	if (SUCCEEDED(hr))
+		hr = fx_efi_read_sbat(&image, &view->sbat);
+
+	fx_pe_close(&image);
 	return hr;
 }
 

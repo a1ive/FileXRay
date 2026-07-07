@@ -14,6 +14,7 @@
     <ClCompile Include="extensions\dll.c">
       <Filter>extensions</Filter>
     </ClCompile>
+    <ClCompile Include="pe.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pagectrl.h" />
@@ -24,6 +25,7 @@
     <ClInclude Include="extensions\extensions.h">
       <Filter>extensions</Filter>
     </ClInclude>
+    <ClInclude Include="pe.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FileXRay.rc" />

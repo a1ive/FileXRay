@@ -117,12 +117,14 @@
     <ClCompile Include="extensions\efi.c" />
     <ClCompile Include="extensions\extensions.c" />
     <ClCompile Include="pagectrl.c" />
+    <ClCompile Include="pe.c" />
     <ClCompile Include="registration.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="hash.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pagectrl.h" />
+    <ClInclude Include="pe.h" />
     <ClInclude Include="registration.h" />
     <ClInclude Include="hash.h" />
     <ClInclude Include="resource.h" />
