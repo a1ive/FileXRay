@@ -333,3 +333,273 @@ HRESULT fx_pe_find_section(const FX_PE_IMAGE *image, const char *name,
 
 	return S_OK;
 }
+
+/* ---- import enumeration helpers ---------------------------------------- */
+
+#define FX_PE_MAX_IMPORT_DLLS     4096U
+#define FX_PE_MAX_IMPORT_THUNKS   65536U
+#define FX_PE_MAX_NAME_LENGTH     32767U
+
+/*
+ * Read a NUL-terminated ASCII name at the given RVA and return a
+ * pointer into the mapped image.  Validates that the name is properly
+ * terminated within the section bounds.
+ */
+static HRESULT fx_pe_read_name(const FX_PE_IMAGE *image, DWORD rva,
+	const char **name)
+{
+	const char *source;
+	size_t available;
+	HRESULT hr;
+
+	*name = NULL;
+	hr = fx_pe_rva_to_pointer(image, rva, 1, (const void **)&source,
+		&available);
+	if (FAILED(hr))
+		return hr;
+
+	if (!memchr(source, '\0', available))
+		return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+
+	*name = source;
+	return S_OK;
+}
+
+/*
+ * Walk a single import thunk chain (INT / ILT) and invoke the callback
+ * for each entry.
+ */
+static HRESULT fx_pe_walk_thunks(const FX_PE_IMAGE *image,
+	DWORD thunk_rva, const char *dll_name, BOOL is_delay_load,
+	FX_PE_IMPORT_CALLBACK callback, void *context)
+{
+	DWORD count;
+	HRESULT hr;
+
+	for (count = 0; count < FX_PE_MAX_IMPORT_THUNKS; count++)
+	{
+		if (image->is_64bit)
+		{
+			const IMAGE_THUNK_DATA64 *thunk;
+
+			hr = fx_pe_rva_to_pointer(image,
+				thunk_rva + (DWORD)(count * sizeof(*thunk)),
+				sizeof(*thunk), (const void **)&thunk, NULL);
+			if (FAILED(hr))
+				return hr;
+
+			if (thunk->u1.AddressOfData == 0)
+				break;
+
+			if (thunk->u1.Ordinal & IMAGE_ORDINAL_FLAG64)
+			{
+				WORD ordinal = (WORD)(thunk->u1.Ordinal & 0xFFFF);
+
+				hr = callback(context, dll_name, NULL, ordinal, 0,
+					is_delay_load);
+				if (FAILED(hr))
+					return hr;
+			}
+			else
+			{
+				const IMAGE_IMPORT_BY_NAME *hint_name;
+				const char *func_name;
+
+				hr = fx_pe_rva_to_pointer(image,
+					(DWORD)(thunk->u1.AddressOfData & 0x7FFFFFFF),
+					sizeof(IMAGE_IMPORT_BY_NAME),
+					(const void **)&hint_name, NULL);
+				if (FAILED(hr))
+					return hr;
+
+				hr = fx_pe_read_name(image,
+					(DWORD)(thunk->u1.AddressOfData & 0x7FFFFFFF) +
+						(DWORD)offsetof(IMAGE_IMPORT_BY_NAME, Name),
+					&func_name);
+				if (FAILED(hr))
+					return hr;
+
+				hr = callback(context, dll_name, func_name,
+					0, hint_name->Hint, is_delay_load);
+				if (FAILED(hr))
+					return hr;
+			}
+		}
+		else
+		{
+			const IMAGE_THUNK_DATA32 *thunk;
+
+			hr = fx_pe_rva_to_pointer(image,
+				thunk_rva + (DWORD)(count * sizeof(*thunk)),
+				sizeof(*thunk), (const void **)&thunk, NULL);
+			if (FAILED(hr))
+				return hr;
+
+			if (thunk->u1.AddressOfData == 0)
+				break;
+
+			if (thunk->u1.Ordinal & IMAGE_ORDINAL_FLAG32)
+			{
+				WORD ordinal = (WORD)(thunk->u1.Ordinal & 0xFFFF);
+
+				hr = callback(context, dll_name, NULL, ordinal, 0,
+					is_delay_load);
+				if (FAILED(hr))
+					return hr;
+			}
+			else
+			{
+				const IMAGE_IMPORT_BY_NAME *hint_name;
+				const char *func_name;
+
+				hr = fx_pe_rva_to_pointer(image,
+					thunk->u1.AddressOfData,
+					sizeof(IMAGE_IMPORT_BY_NAME),
+					(const void **)&hint_name, NULL);
+				if (FAILED(hr))
+					return hr;
+
+				hr = fx_pe_read_name(image,
+					thunk->u1.AddressOfData +
+						(DWORD)offsetof(IMAGE_IMPORT_BY_NAME, Name),
+					&func_name);
+				if (FAILED(hr))
+					return hr;
+
+				hr = callback(context, dll_name, func_name,
+					0, hint_name->Hint, is_delay_load);
+				if (FAILED(hr))
+					return hr;
+			}
+		}
+	}
+
+	return S_OK;
+}
+
+HRESULT fx_pe_enum_imports(const FX_PE_IMAGE *image,
+	FX_PE_IMPORT_CALLBACK callback, void *context)
+{
+	IMAGE_DATA_DIRECTORY import_dir;
+	const IMAGE_IMPORT_DESCRIPTOR *descriptors;
+	size_t available;
+	DWORD max_count;
+	DWORD index;
+	HRESULT hr;
+
+	hr = fx_pe_get_data_directory(image, IMAGE_DIRECTORY_ENTRY_IMPORT,
+		&import_dir);
+	if (FAILED(hr))
+		return hr;
+	if (hr == S_FALSE || import_dir.VirtualAddress == 0)
+		return S_OK;
+
+	hr = fx_pe_rva_to_pointer(image, import_dir.VirtualAddress,
+		sizeof(IMAGE_IMPORT_DESCRIPTOR), (const void **)&descriptors,
+		&available);
+	if (FAILED(hr))
+		return hr;
+
+	max_count = (DWORD)(available / sizeof(IMAGE_IMPORT_DESCRIPTOR));
+	if (max_count > FX_PE_MAX_IMPORT_DLLS)
+		max_count = FX_PE_MAX_IMPORT_DLLS;
+
+	for (index = 0; index < max_count; index++)
+	{
+		const IMAGE_IMPORT_DESCRIPTOR *desc = &descriptors[index];
+		const char *dll_name;
+		DWORD thunk_rva;
+
+		if (desc->Characteristics == 0 && desc->TimeDateStamp == 0 &&
+			desc->ForwarderChain == 0 && desc->Name == 0 &&
+			desc->FirstThunk == 0)
+			break;
+
+		if (desc->Name == 0)
+			continue;
+
+		hr = fx_pe_read_name(image, desc->Name, &dll_name);
+		if (FAILED(hr))
+			continue;
+
+		thunk_rva = desc->OriginalFirstThunk;
+		if (thunk_rva == 0)
+			thunk_rva = desc->FirstThunk;
+		if (thunk_rva == 0)
+			continue;
+
+		hr = fx_pe_walk_thunks(image, thunk_rva, dll_name, FALSE,
+			callback, context);
+		if (FAILED(hr))
+			return hr;
+	}
+
+	return S_OK;
+}
+
+HRESULT fx_pe_enum_delay_imports(const FX_PE_IMAGE *image,
+	FX_PE_IMPORT_CALLBACK callback, void *context)
+{
+	IMAGE_DATA_DIRECTORY delay_dir;
+	const IMAGE_DELAYLOAD_DESCRIPTOR *descriptors;
+	size_t available;
+	DWORD max_count;
+	DWORD index;
+	HRESULT hr;
+
+	hr = fx_pe_get_data_directory(image,
+		IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT, &delay_dir);
+	if (FAILED(hr))
+		return hr;
+	if (hr == S_FALSE || delay_dir.VirtualAddress == 0)
+		return S_OK;
+
+	hr = fx_pe_rva_to_pointer(image, delay_dir.VirtualAddress,
+		sizeof(IMAGE_DELAYLOAD_DESCRIPTOR),
+		(const void **)&descriptors, &available);
+	if (FAILED(hr))
+		return hr;
+
+	max_count = (DWORD)(available / sizeof(IMAGE_DELAYLOAD_DESCRIPTOR));
+	if (max_count > FX_PE_MAX_IMPORT_DLLS)
+		max_count = FX_PE_MAX_IMPORT_DLLS;
+
+	for (index = 0; index < max_count; index++)
+	{
+		const IMAGE_DELAYLOAD_DESCRIPTOR *desc = &descriptors[index];
+		const char *dll_name;
+		DWORD name_rva;
+		DWORD thunk_rva;
+
+		if (desc->DllNameRVA == 0 && desc->ImportNameTableRVA == 0)
+			break;
+		if (desc->DllNameRVA == 0)
+			continue;
+
+		/*
+		 * Old-style delay-load descriptors (grAttrs == 0) store VAs
+		 * instead of RVAs.  We only support the RVA-based format
+		 * (grAttrs == 1) since that is what modern linkers emit.
+		 */
+		if ((desc->Attributes.AllAttributes & 1) == 0)
+			continue;
+
+		name_rva = desc->DllNameRVA;
+		hr = fx_pe_read_name(image, name_rva, &dll_name);
+		if (FAILED(hr))
+			continue;
+
+		thunk_rva = desc->ImportNameTableRVA;
+		if (thunk_rva == 0)
+			thunk_rva = desc->ImportAddressTableRVA;
+		if (thunk_rva == 0)
+			continue;
+
+		hr = fx_pe_walk_thunks(image, thunk_rva, dll_name, TRUE,
+			callback, context);
+		if (FAILED(hr))
+			return hr;
+	}
+
+	return S_OK;
+}

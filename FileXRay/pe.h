@@ -76,6 +76,32 @@ HRESULT fx_pe_get_image_base(const FX_PE_IMAGE *image,
 HRESULT fx_pe_find_section(const FX_PE_IMAGE *image, const char *name,
 	const IMAGE_SECTION_HEADER **section);
 
+/*
+ * Callback invoked once per import entry (regular or delay-load).
+ * Return S_OK to continue enumeration, or any failure HRESULT to stop.
+ */
+typedef HRESULT (*FX_PE_IMPORT_CALLBACK)(
+	void *context,
+	const char *dll_name,
+	const char *function_name,
+	WORD ordinal,
+	WORD hint,
+	BOOL is_delay_load
+);
+
+/*
+ * Enumerate all regular imports from IMAGE_DIRECTORY_ENTRY_IMPORT.
+ * The callback is invoked once per imported function, grouped by DLL.
+ */
+HRESULT fx_pe_enum_imports(const FX_PE_IMAGE *image,
+	FX_PE_IMPORT_CALLBACK callback, void *context);
+
+/*
+ * Enumerate all delay-load imports from IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT.
+ */
+HRESULT fx_pe_enum_delay_imports(const FX_PE_IMAGE *image,
+	FX_PE_IMPORT_CALLBACK callback, void *context);
+
 #ifdef __cplusplus
 }
 #endif

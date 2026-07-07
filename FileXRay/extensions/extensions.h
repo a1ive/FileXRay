@@ -34,6 +34,7 @@ const FX_EXTENSION_HANDLER *fx_extension_find(PCWSTR extension);
 
 extern const FX_EXTENSION_HANDLER fx_extension_dll_handler;
 extern const FX_EXTENSION_HANDLER fx_extension_efi_handler;
+extern const FX_EXTENSION_HANDLER fx_extension_exe_handler;
 
 #ifdef __cplusplus
 }

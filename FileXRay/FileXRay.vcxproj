@@ -115,6 +115,7 @@
   <ItemGroup>
     <ClCompile Include="extensions\dll.c" />
     <ClCompile Include="extensions\efi.c" />
+    <ClCompile Include="extensions\exe.c" />
     <ClCompile Include="extensions\extensions.c" />
     <ClCompile Include="pagectrl.c" />
     <ClCompile Include="pe.c" />
