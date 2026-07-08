@@ -554,14 +554,13 @@ static void fx_ico_layout(void *context, const RECT *bounds)
 	GetClientRect(view->list, &client);
 	width = client.right - client.left;
 
-	preview_width = view->preview_size + fx_ico_dlg_x(view->parent, 28);
-	dimensions_width = fx_ico_dlg_x(view->parent, 62);
-	depth_width = fx_ico_dlg_x(view->parent, 42);
+	preview_width = view->preview_size + fx_ico_dlg_x(view->parent, 20);
+	dimensions_width = fx_ico_dlg_x(view->parent, 42);
+	depth_width = fx_ico_dlg_x(view->parent, 28);
 	format_width = fx_ico_dlg_x(view->parent, 42);
-	bytes_width = width - preview_width - dimensions_width - depth_width -
-		format_width;
-	if (bytes_width < fx_ico_dlg_x(view->parent, 48))
-		bytes_width = fx_ico_dlg_x(view->parent, 48);
+	bytes_width = width - preview_width - dimensions_width - depth_width - format_width;
+	if (bytes_width < fx_ico_dlg_x(view->parent, 36))
+		bytes_width = fx_ico_dlg_x(view->parent, 36);
 
 	SendMessageW(view->list, LVM_SETCOLUMNWIDTH, 0, preview_width);
 	SendMessageW(view->list, LVM_SETCOLUMNWIDTH, 1, dimensions_width);
