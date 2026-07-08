@@ -26,8 +26,8 @@
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
-    <SupportLTL>ucrt</SupportLTL>
-    <WindowsTargetPlatformMinVersion>6.1.7600.0</WindowsTargetPlatformMinVersion>
+    <SupportLTL>msvcrt</SupportLTL>
+    <WindowsTargetPlatformMinVersion>5.0.2195.0</WindowsTargetPlatformMinVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
@@ -35,8 +35,8 @@
     <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
-    <SupportLTL>ucrt</SupportLTL>
-    <WindowsTargetPlatformMinVersion>6.1.7600.0</WindowsTargetPlatformMinVersion>
+    <SupportLTL>msvcrt</SupportLTL>
+    <WindowsTargetPlatformMinVersion>5.0.2195.0</WindowsTargetPlatformMinVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">

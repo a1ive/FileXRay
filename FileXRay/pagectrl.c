@@ -22,6 +22,10 @@
 #endif
 
 #define FX_DEFAULT_DPI 96U
+#define FX_PAGE_TEMPLATE_HEIGHT_DLU 218
+#define FX_EXTENSION_Y_DLU 194
+#define FX_EXTENSION_MIN_GROUP_HEIGHT_DLU 96
+#define FX_PAGE_BOTTOM_MARGIN_DLU 7
 
 #ifndef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -38,6 +42,11 @@ typedef struct FX_PAGE_STATE
 	HANDLE hash_thread;
 	UINT dpi;
 	HFONT font;
+	BOOL layout_ready;
+	BOOL layout_in_progress;
+	BOOL scroll_vert_visible;
+	int scroll_y;
+	int content_height;
 	const FX_EXTENSION_HANDLER *extension_handler;
 	void *extension_context;
 	DWORD hash_mask;
@@ -406,7 +415,8 @@ static void fx_update_extension(HWND hwnd, FX_PAGE_STATE *state, PCWSTR path)
 	state->extension_context = context;
 	SetDlgItemTextW(hwnd, IDC_EXTENSION_GROUP, handler->title);
 	ShowWindow(GetDlgItem(hwnd, IDC_EXTENSION_GROUP), SW_SHOW);
-	fx_layout_dialog(hwnd, state);
+	if (state->layout_ready)
+		fx_layout_dialog(hwnd, state);
 }
 
 static UINT fx_get_window_dpi(HWND hwnd)
@@ -467,12 +477,110 @@ static inline void fx_move_dlg_item(HWND hwnd, int id, int x, int y, int width, 
 	MoveWindow(GetDlgItem(hwnd, id), x, y, width, height, TRUE);
 }
 
+static int fx_clamp_scroll_pos(int position, int content, int page)
+{
+	int max_scroll;
+
+	max_scroll = content - page;
+	if (max_scroll < 0)
+		max_scroll = 0;
+	if (position < 0)
+		return 0;
+	if (position > max_scroll)
+		return max_scroll;
+	return position;
+}
+
+static int fx_dialog_min_content_height(HWND hwnd, const FX_PAGE_STATE *state)
+{
+	int height;
+
+	height = fx_dlg_y(hwnd, FX_PAGE_TEMPLATE_HEIGHT_DLU);
+	if (state && state->extension_handler)
+	{
+		height = MAX(height, fx_dlg_y(hwnd,
+			FX_EXTENSION_Y_DLU + FX_EXTENSION_MIN_GROUP_HEIGHT_DLU +
+			FX_PAGE_BOTTOM_MARGIN_DLU));
+	}
+
+	return height;
+}
+
+static BOOL fx_set_dialog_vscroll_visible(HWND hwnd, FX_PAGE_STATE *state, BOOL visible)
+{
+	LONG_PTR style;
+	BOOL style_visible;
+
+	style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+	style_visible = (style & WS_VSCROLL) != 0;
+	if (state->scroll_vert_visible == visible && style_visible == visible)
+		return FALSE;
+
+	if (visible)
+		style |= WS_VSCROLL;
+	else
+		style &= ~WS_VSCROLL;
+
+	SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+	state->scroll_vert_visible = visible;
+	SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+		SWP_FRAMECHANGED);
+	ShowScrollBar(hwnd, SB_VERT, visible);
+	return TRUE;
+}
+
+static void fx_update_dialog_vscroll(HWND hwnd, FX_PAGE_STATE *state,
+	int min_content_height)
+{
+	RECT client;
+	SCROLLINFO info;
+	BOOL changed;
+	BOOL need_scroll;
+	int page_height;
+	int pass;
+
+	if (min_content_height < 1)
+		min_content_height = 1;
+
+	for (pass = 0; pass < 3; pass++)
+	{
+		GetClientRect(hwnd, &client);
+		page_height = client.bottom - client.top;
+		need_scroll = page_height < min_content_height;
+
+		changed = fx_set_dialog_vscroll_visible(hwnd, state, need_scroll);
+		if (!changed)
+			break;
+	}
+
+	GetClientRect(hwnd, &client);
+	page_height = client.bottom - client.top;
+	if (page_height < 1)
+		page_height = 1;
+
+	state->content_height = MAX(page_height, min_content_height);
+	state->scroll_y = fx_clamp_scroll_pos(state->scroll_y,
+		state->content_height, page_height);
+
+	ZeroMemory(&info, sizeof(info));
+	info.cbSize = sizeof(info);
+	info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+	info.nMin = 0;
+	info.nMax = state->content_height - 1;
+	info.nPage = (UINT)page_height;
+	info.nPos = state->scroll_y;
+	SetScrollInfo(hwnd, SB_VERT, &info, TRUE);
+}
+
 static void fx_layout_dialog(HWND hwnd, FX_PAGE_STATE *state)
 {
 	RECT client;
 	RECT extension_bounds;
 	int client_width;
 	int client_height;
+	int min_content_height;
+	int scroll_y;
 	int outer_x;
 	int outer_y;
 	int field_x;
@@ -499,9 +607,29 @@ static void fx_layout_dialog(HWND hwnd, FX_PAGE_STATE *state)
 	int button_width;
 	int button_height;
 
-	GetClientRect(hwnd, &client);
-	client_width = MAX(client.right - client.left, fx_dlg_x(hwnd, 227));
-	client_height = MAX(client.bottom - client.top, fx_dlg_y(hwnd, 218));
+	if (state && state->layout_in_progress)
+		return;
+	if (state)
+		state->layout_in_progress = TRUE;
+
+	min_content_height = fx_dialog_min_content_height(hwnd, state);
+	if (state)
+	{
+		fx_update_dialog_vscroll(hwnd, state, min_content_height);
+		GetClientRect(hwnd, &client);
+		client_width = client.right - client.left;
+		client_height = state->content_height;
+		scroll_y = state->scroll_y;
+	}
+	else
+	{
+		GetClientRect(hwnd, &client);
+		client_width = client.right - client.left;
+		client_height = MAX(client.bottom - client.top, min_content_height);
+		scroll_y = 0;
+	}
+	if (client_width < fx_dlg_x(hwnd, 1))
+		client_width = fx_dlg_x(hwnd, 1);
 
 	outer_x = fx_dlg_x(hwnd, 7);
 	outer_y = fx_dlg_y(hwnd, 7);
@@ -513,7 +641,7 @@ static void fx_layout_dialog(HWND hwnd, FX_PAGE_STATE *state)
 	file_height = fx_dlg_y(hwnd, 43);
 	hash_y = fx_dlg_y(hwnd, 55);
 	hash_height = fx_dlg_y(hwnd, 135);
-	extension_y = fx_dlg_y(hwnd, 194);
+	extension_y = fx_dlg_y(hwnd, FX_EXTENSION_Y_DLU);
 	extension_height = MAX(fx_dlg_y(hwnd, 18), client_height - extension_y - outer_y);
 
 	checkbox_height = fx_dlg_y(hwnd, 10);
@@ -531,31 +659,121 @@ static void fx_layout_dialog(HWND hwnd, FX_PAGE_STATE *state)
 	button_width = fx_dlg_x(hwnd, 60);
 	button_height = fx_dlg_y(hwnd, 14);
 
-	fx_move_dlg_item(hwnd, IDC_FILE_GROUP, outer_x, file_y, group_width, file_height);
-	fx_move_dlg_item(hwnd, IDC_FILE_TYPE, field_x, fx_dlg_y(hwnd, 20), content_width, fx_dlg_y(hwnd, 21));
+	fx_move_dlg_item(hwnd, IDC_FILE_GROUP, outer_x, file_y - scroll_y,
+		group_width, file_height);
+	fx_move_dlg_item(hwnd, IDC_FILE_TYPE, field_x,
+		fx_dlg_y(hwnd, 20) - scroll_y, content_width, fx_dlg_y(hwnd, 21));
 
-	fx_move_dlg_item(hwnd, IDC_HASH_GROUP, outer_x, hash_y, group_width, hash_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_MD5, hash_column_1, fx_dlg_y(hwnd, 72), md5_width, checkbox_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_SHA1, hash_column_2, fx_dlg_y(hwnd, 72), sha1_width, checkbox_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_CRC32, hash_column_3, fx_dlg_y(hwnd, 72), crc32_width, checkbox_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_CRC64, hash_column_1, fx_dlg_y(hwnd, 86), crc64_width, checkbox_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_SHA256, hash_column_2, fx_dlg_y(hwnd, 86), sha256_width, checkbox_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_SHA512, hash_column_3, fx_dlg_y(hwnd, 86), sha512_width, checkbox_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_START, field_x, fx_dlg_y(hwnd, 102), button_width, button_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_COPY, client_width - field_x - button_width, fx_dlg_y(hwnd, 102), button_width, button_height);
-	fx_move_dlg_item(hwnd, IDC_HASH_PROGRESS, field_x, fx_dlg_y(hwnd, 122), content_width, fx_dlg_y(hwnd, 10));
-	fx_move_dlg_item(hwnd, IDC_HASH_STATUS, field_x, fx_dlg_y(hwnd, 136), content_width, fx_dlg_y(hwnd, 8));
-	fx_move_dlg_item(hwnd, IDC_HASH_RESULT, field_x, fx_dlg_y(hwnd, 148), content_width, fx_dlg_y(hwnd, 34));
+	fx_move_dlg_item(hwnd, IDC_HASH_GROUP, outer_x, hash_y - scroll_y,
+		group_width, hash_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_MD5, hash_column_1,
+		fx_dlg_y(hwnd, 72) - scroll_y, md5_width, checkbox_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_SHA1, hash_column_2,
+		fx_dlg_y(hwnd, 72) - scroll_y, sha1_width, checkbox_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_CRC32, hash_column_3,
+		fx_dlg_y(hwnd, 72) - scroll_y, crc32_width, checkbox_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_CRC64, hash_column_1,
+		fx_dlg_y(hwnd, 86) - scroll_y, crc64_width, checkbox_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_SHA256, hash_column_2,
+		fx_dlg_y(hwnd, 86) - scroll_y, sha256_width, checkbox_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_SHA512, hash_column_3,
+		fx_dlg_y(hwnd, 86) - scroll_y, sha512_width, checkbox_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_START, field_x,
+		fx_dlg_y(hwnd, 102) - scroll_y, button_width, button_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_COPY,
+		client_width - field_x - button_width,
+		fx_dlg_y(hwnd, 102) - scroll_y, button_width, button_height);
+	fx_move_dlg_item(hwnd, IDC_HASH_PROGRESS, field_x,
+		fx_dlg_y(hwnd, 122) - scroll_y, content_width, fx_dlg_y(hwnd, 10));
+	fx_move_dlg_item(hwnd, IDC_HASH_STATUS, field_x,
+		fx_dlg_y(hwnd, 136) - scroll_y, content_width, fx_dlg_y(hwnd, 8));
+	fx_move_dlg_item(hwnd, IDC_HASH_RESULT, field_x,
+		fx_dlg_y(hwnd, 148) - scroll_y, content_width, fx_dlg_y(hwnd, 34));
 
-	fx_move_dlg_item(hwnd, IDC_EXTENSION_GROUP, outer_x, extension_y, group_width, extension_height);
+	fx_move_dlg_item(hwnd, IDC_EXTENSION_GROUP, outer_x,
+		extension_y - scroll_y, group_width, extension_height);
 	if (state && state->extension_handler)
 	{
 		extension_bounds.left = field_x;
-		extension_bounds.top = extension_y + fx_dlg_y(hwnd, 12);
+		extension_bounds.top = extension_y + fx_dlg_y(hwnd, 12) - scroll_y;
 		extension_bounds.right = field_x + content_width;
-		extension_bounds.bottom = extension_y + extension_height - fx_dlg_y(hwnd, 7);
+		extension_bounds.bottom = extension_y + extension_height -
+			fx_dlg_y(hwnd, 7) - scroll_y;
 		state->extension_handler->layout(state->extension_context, &extension_bounds);
 	}
+
+	if (state)
+		state->layout_in_progress = FALSE;
+}
+
+static void fx_scroll_dialog_to(HWND hwnd, FX_PAGE_STATE *state, int y)
+{
+	RECT client;
+	int page_height;
+
+	GetClientRect(hwnd, &client);
+	page_height = client.bottom - client.top;
+	if (page_height < 1)
+		page_height = 1;
+
+	y = fx_clamp_scroll_pos(y, state->content_height, page_height);
+	if (y == state->scroll_y)
+		return;
+
+	state->scroll_y = y;
+	SendMessageW(hwnd, WM_SETREDRAW, FALSE, 0);
+	fx_layout_dialog(hwnd, state);
+	SendMessageW(hwnd, WM_SETREDRAW, TRUE, 0);
+	RedrawWindow(hwnd, NULL, NULL,
+		RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+}
+
+static void fx_scroll_dialog_bar(HWND hwnd, FX_PAGE_STATE *state, WPARAM wparam)
+{
+	SCROLLINFO info;
+	int position;
+	int line;
+
+	ZeroMemory(&info, sizeof(info));
+	info.cbSize = sizeof(info);
+	info.fMask = SIF_ALL;
+	if (!GetScrollInfo(hwnd, SB_VERT, &info))
+		return;
+
+	position = state->scroll_y;
+	line = fx_dlg_y(hwnd, 10);
+	if (line < 1)
+		line = 1;
+
+	switch (LOWORD(wparam))
+	{
+	case SB_LINEUP:
+		position -= line;
+		break;
+	case SB_LINEDOWN:
+		position += line;
+		break;
+	case SB_PAGEUP:
+		position -= (int)info.nPage;
+		break;
+	case SB_PAGEDOWN:
+		position += (int)info.nPage;
+		break;
+	case SB_THUMBTRACK:
+	case SB_THUMBPOSITION:
+		position = info.nTrackPos;
+		break;
+	case SB_TOP:
+		position = 0;
+		break;
+	case SB_BOTTOM:
+		position = state->content_height;
+		break;
+	default:
+		break;
+	}
+
+	fx_scroll_dialog_to(hwnd, state, position);
 }
 
 static void fx_apply_dialog_dpi(HWND hwnd, FX_PAGE_STATE *state, UINT dpi)
@@ -580,7 +798,8 @@ static void fx_apply_dialog_dpi(HWND hwnd, FX_PAGE_STATE *state, UINT dpi)
 			DeleteObject(old_font);
 	}
 
-	fx_layout_dialog(hwnd, state);
+	if (state->layout_ready)
+		fx_layout_dialog(hwnd, state);
 	InvalidateRect(hwnd, NULL, TRUE);
 }
 
@@ -624,9 +843,53 @@ static INT_PTR CALLBACK fx_page_dialog_proc(HWND hwnd, UINT message, WPARAM wpar
 		fx_initialize_dialog(hwnd, (FX_PAGE_STATE *)page->lParam);
 		return TRUE;
 	}
-	case WM_SIZE:
-		fx_layout_dialog(hwnd, (FX_PAGE_STATE *)GetWindowLongPtrW(hwnd, DWLP_USER));
+	case WM_SHOWWINDOW:
+	{
+		FX_PAGE_STATE *state = (FX_PAGE_STATE *)GetWindowLongPtrW(hwnd, DWLP_USER);
+
+		if (wparam && state && !state->layout_ready)
+		{
+			state->layout_ready = TRUE;
+			fx_layout_dialog(hwnd, state);
+		}
 		return TRUE;
+	}
+	case WM_SIZE:
+	{
+		FX_PAGE_STATE *state = (FX_PAGE_STATE *)GetWindowLongPtrW(hwnd, DWLP_USER);
+
+		if (state && state->layout_ready && !state->layout_in_progress)
+			fx_layout_dialog(hwnd, state);
+		return TRUE;
+	}
+	case WM_VSCROLL:
+	{
+		FX_PAGE_STATE *state = (FX_PAGE_STATE *)GetWindowLongPtrW(hwnd, DWLP_USER);
+
+		if (state && lparam == 0)
+		{
+			fx_scroll_dialog_bar(hwnd, state, wparam);
+			return TRUE;
+		}
+		break;
+	}
+	case WM_MOUSEWHEEL:
+	{
+		FX_PAGE_STATE *state = (FX_PAGE_STATE *)GetWindowLongPtrW(hwnd, DWLP_USER);
+
+		if (state && state->scroll_vert_visible)
+		{
+			int delta = (short)HIWORD(wparam);
+			int line = fx_dlg_y(hwnd, 30);
+
+			if (line < 1)
+				line = 1;
+			fx_scroll_dialog_to(hwnd, state,
+				state->scroll_y - MulDiv(delta, line, WHEEL_DELTA));
+			return TRUE;
+		}
+		break;
+	}
 	case WM_DPICHANGED:
 	{
 		FX_PAGE_STATE* state = (FX_PAGE_STATE*)GetWindowLongPtrW(hwnd, DWLP_USER);
