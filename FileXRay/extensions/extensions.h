@@ -36,6 +36,7 @@ extern const FX_EXTENSION_HANDLER fx_extension_dll_handler;
 extern const FX_EXTENSION_HANDLER fx_extension_efi_handler;
 extern const FX_EXTENSION_HANDLER fx_extension_exe_handler;
 extern const FX_EXTENSION_HANDLER fx_extension_ico_handler;
+extern const FX_EXTENSION_HANDLER fx_extension_iso_handler;
 
 #ifdef __cplusplus
 }

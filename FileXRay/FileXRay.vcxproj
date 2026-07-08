@@ -118,6 +118,7 @@
     <ClCompile Include="extensions\exe.c" />
     <ClCompile Include="extensions\extensions.c" />
     <ClCompile Include="extensions\ico.c" />
+    <ClCompile Include="extensions\iso.c" />
     <ClCompile Include="pagectrl.c" />
     <ClCompile Include="pe.c" />
     <ClCompile Include="registration.c" />

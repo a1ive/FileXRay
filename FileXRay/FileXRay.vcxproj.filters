@@ -21,6 +21,9 @@
     <ClCompile Include="extensions\ico.c">
       <Filter>extensions</Filter>
     </ClCompile>
+    <ClCompile Include="extensions\iso.c">
+      <Filter>extensions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pagectrl.h" />
