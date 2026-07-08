@@ -12,6 +12,8 @@ extern "C" {
 #endif
 
 HRESULT fx_add_property_sheet_page(HINSTANCE instance, PCWSTR path, LPFNADDPROPSHEETPAGE add_page, LPARAM lparam);
+void fx_module_add_ref(void);
+void fx_module_release(void);
 
 #ifdef __cplusplus
 }

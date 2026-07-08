@@ -35,6 +35,7 @@ typedef struct FX_PAGE_STATE
 	WCHAR *path;
 	volatile LONG cancel;
 	volatile LONG running;
+	HANDLE hash_thread;
 	UINT dpi;
 	HFONT font;
 	const FX_EXTENSION_HANDLER *extension_handler;
@@ -100,6 +101,7 @@ static FX_PAGE_STATE *fx_page_state_create(HINSTANCE instance, PCWSTR path)
 	if (state->title[0] == L'\0')
 		StringCchCopyW(state->title, ARRAYSIZE(state->title), L"FileXRay");
 
+	fx_module_add_ref();
 	return state;
 }
 
@@ -112,6 +114,16 @@ static void fx_page_state_release(FX_PAGE_STATE *state)
 		if (state->path)
 			HeapFree(GetProcessHeap(), 0, state->path);
 		HeapFree(GetProcessHeap(), 0, state);
+		fx_module_release();
+	}
+}
+
+static void fx_close_hash_thread(FX_PAGE_STATE *state)
+{
+	if (state->hash_thread)
+	{
+		CloseHandle(state->hash_thread);
+		state->hash_thread = NULL;
 	}
 }
 
@@ -331,11 +343,12 @@ static void fx_begin_hash(HWND hwnd, FX_PAGE_STATE *state)
 		return;
 	}
 
-	CloseHandle(thread);
+	state->hash_thread = thread;
 }
 
 static void fx_complete_hash(HWND hwnd, FX_PAGE_STATE *state)
 {
+	fx_close_hash_thread(state);
 	fx_set_hash_controls_enabled(hwnd, TRUE);
 
 	if (SUCCEEDED(state->hash_hr))
@@ -674,6 +687,9 @@ static INT_PTR CALLBACK fx_page_dialog_proc(HWND hwnd, UINT message, WPARAM wpar
 		if (state)
 		{
 			InterlockedExchange(&state->cancel, 1);
+			if (state->hash_thread)
+				CancelSynchronousIo(state->hash_thread);
+			fx_close_hash_thread(state);
 			fx_destroy_extension(state);
 			state->hwnd = NULL;
 			SetWindowLongPtrW(hwnd, DWLP_USER, 0);

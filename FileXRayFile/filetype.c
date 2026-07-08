@@ -17,6 +17,7 @@
 
 static INIT_ONCE g_fx_magic_once = INIT_ONCE_STATIC_INIT;
 static CRITICAL_SECTION g_fx_magic_lock;
+static BOOL g_fx_magic_lock_initialized;
 static magic_t g_fx_magic;
 static void *g_fx_magic_mgc;
 static HRESULT g_fx_magic_hr = E_FAIL;
@@ -141,6 +142,7 @@ static BOOL CALLBACK magic_init_once(PINIT_ONCE init_once, PVOID parameter, PVOI
 	UNREFERENCED_PARAMETER(context);
 
 	InitializeCriticalSection(&g_fx_magic_lock);
+	g_fx_magic_lock_initialized = TRUE;
 
 	g_fx_magic = magic_open(MAGIC_NONE);
 	if (!g_fx_magic)
@@ -176,6 +178,29 @@ static HRESULT ensure_magic_loaded(void)
 	if (!InitOnceExecuteOnce(&g_fx_magic_once, magic_init_once, NULL, NULL))
 		return HRESULT_FROM_WIN32(GetLastError());
 	return g_fx_magic_hr;
+}
+
+void fx_filetype_shutdown(void)
+{
+	if (!g_fx_magic_lock_initialized)
+		return;
+
+	EnterCriticalSection(&g_fx_magic_lock);
+	if (g_fx_magic)
+	{
+		magic_close(g_fx_magic);
+		g_fx_magic = NULL;
+	}
+	if (g_fx_magic_mgc)
+	{
+		free(g_fx_magic_mgc);
+		g_fx_magic_mgc = NULL;
+	}
+	g_fx_magic_hr = E_FAIL;
+	LeaveCriticalSection(&g_fx_magic_lock);
+
+	DeleteCriticalSection(&g_fx_magic_lock);
+	g_fx_magic_lock_initialized = FALSE;
 }
 
 static HRESULT copy_magic_text(const char *text, wchar_t *description, size_t description_cch)

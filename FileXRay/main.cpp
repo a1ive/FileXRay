@@ -5,11 +5,22 @@
 #include <shlobj.h>
 #include <new>
 
+#include "filetype.h"
 #include "pagectrl.h"
 #include "registration.h"
 
 static HINSTANCE g_filexray_instance;
 static volatile LONG g_filexray_dll_refs;
+
+extern "C" void fx_module_add_ref(void)
+{
+	InterlockedIncrement(&g_filexray_dll_refs);
+}
+
+extern "C" void fx_module_release(void)
+{
+	InterlockedDecrement(&g_filexray_dll_refs);
+}
 
 static const CLSID CLSID_FileXRayPropertySheet =
 {
@@ -235,12 +246,14 @@ private:
 
 extern "C" BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
-	UNREFERENCED_PARAMETER(reserved);
-
 	if (reason == DLL_PROCESS_ATTACH)
 	{
 		g_filexray_instance = instance;
 		DisableThreadLibraryCalls(instance);
+	}
+	else if (reason == DLL_PROCESS_DETACH && !reserved)
+	{
+		fx_filetype_shutdown();
 	}
 
 	return TRUE;

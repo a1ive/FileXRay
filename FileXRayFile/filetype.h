@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 HRESULT fx_filetype_describe_path(const wchar_t *path, wchar_t *description, size_t description_cch);
+void fx_filetype_shutdown(void);
 
 #ifdef __cplusplus
 }
