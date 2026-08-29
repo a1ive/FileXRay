@@ -10922,7 +10922,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: commands,v 1.82 2026/02/16 14:39:53 christos Exp $
+# $File: commands,v 1.83 2026/08/28 17:27:14 christos Exp $
 # commands:  file(1) magic for various shells and interpreters
 #
 #0	string/w	:			shell archive or script for antique kernel text
@@ -10961,6 +10961,8 @@
 !:mime	text/x-shellscript
 0	string/fwt	#!\ /usr/bin/env\ zsh	Paul Falstad's zsh script text executable
 !:mime	text/x-shellscript
+0	string/fwt	#!\ /usr/bin/env\ -S\ zsh 	Paul Falstad's zsh script text executable
+!:mime	text/x-shellscript
 
 0	string/fwt	#!\ /bin/ash		Neil Brown's ash script text executable
 !:mime	text/x-shellscript
@@ -10997,6 +10999,11 @@
 !:mime	text/x-lua
 0	string/fwt	#!\ /bin/env\ lua	Lua script text executable
 !:mime	text/x-lua
+0	string/fwt	#!\ /usr/bin/env\ -S\ lua 	Lua script text executable
+!:mime	text/x-lua
+0	string/fwt	#!\ /bin/env\ -S\ lua 	Lua script text executable
+!:mime	text/x-lua
+
 
 # AT&T Bell Labs' Plan 9 shell
 0	string/fwt	#!\ /bin/rc	Plan 9 rc shell script text executable
@@ -11022,6 +11029,11 @@
 !:mime	text/x-shellscript
 0	string/fwt	#!\ /bin/env\ bash	Bourne-Again shell script text executable
 !:mime	text/x-shellscript
+0	string/fwt	#!\ /usr/bin/env\ -S\ bash 	Bourne-Again shell script text executable
+!:mime	text/x-shellscript
+0	string/fwt	#!\ /bin/env\ -S\ bash 	Bourne-Again shell script text executable
+!:mime	text/x-shellscript
+
 
 0	string/fwt	#!\ /bin/dash	Dash shell script text executable
 !:mime	text/x-shellscript
@@ -11036,6 +11048,8 @@
 !:mime	text/x-shellscript
 0	string/fwt	#!\ /usr/bin/env\ fish		fish shell script text executable
 !:mime	text/x-shellscript
+0	string/fwt	#!\ /usr/bin/env\ -S\ fish 		fish shell script text executable
+!:mime	text/x-shellscript
 
 0	search/1/fwt	#!\ /usr/bin/tclsh	Tcl/Tk script text executable
 !:mime	text/x-tcl
@@ -11045,6 +11059,10 @@
 0	search/1/fwt	#!\ /usr/bin/env\ texlua	LuaTex script text executable
 !:mime	text/x-luatex
 0	search/1/fwt	#!\ /bin/env\ texlua	LuaTex script text executable
+!:mime	text/x-luatex
+0	search/1/fwt	#!\ /usr/bin/env\ -S\ texlua 	LuaTex script text executable
+!:mime	text/x-luatex
+0	search/1/fwt	#!\ /bin/env\ -S\ texlua 	LuaTex script text executable
 !:mime	text/x-luatex
 
 0	search/1/fwt	#!\ /usr/bin/luatex	LuaTex script text executable
@@ -11072,6 +11090,8 @@
 0	string/fwt	#!\ /usr/bin/execlineb		execline script text executable
 !:mime	text/x-execline
 0	string/fwt	#!\ /usr/bin/env\ execlineb		execline script text executable
+!:mime	text/x-execline
+0	string/fwt	#!\ /usr/bin/env\ -S\ execlineb 		execline script text executable
 !:mime	text/x-execline
 
 0	string	#!
@@ -11152,7 +11172,10 @@
 
 0	string/fwt	#!\ /usr/bin/env\ runghc	GHC script executable
 0	string/fwt	#!\ /usr/bin/env\ runhaskell	Haskell script executable
-0	string/fwt	#!\ /usr/bin/env\ julia Julia script executable
+0	string/fwt	#!\ /usr/bin/env\ julia	Julia script executable
+0	string/fwt	#!\ /usr/bin/env\ -S\ runghc 	GHC script executable
+0	string/fwt	#!\ /usr/bin/env\ -S\ runhaskell 	Haskell script executable
+0	string/fwt	#!\ /usr/bin/env\ -S\ julia 	Julia script executable
 
 #------------------------------------------------------------------------------
 # Magdir/communications
@@ -21646,7 +21669,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: geos,v 1.5 2024/04/07 17:56:40 christos Exp $
+# $File: geos,v 1.6 2026/08/28 17:18:01 christos Exp $
 # GEOS files (Vidar Madsen, vidar@gimp.org)
 # semi-commonly used in embedded and handheld systems.
 0	belong	0xc745c153	GEOS
@@ -21664,6 +21687,11 @@
 #>52	short	x	\b, proto %d
 #>54	short	x	\br%d
 #>168	string	>\0	\b, copyright "%s"
+
+# https://github.com/bluewaysw/pcgeos/blob/master/Appl/NinFnt/ninfntConstant.def#L196
+0	string	BSWF	PC/GEOS bitmap font,
+>5	byte	x	version %d.
+>4	byte	x	\b%d
 
 30	string	PRG\ formatted\ GEOS\ file	Formatted GEOS file
 >22	byte	6	\b, APPLICATION
@@ -33805,7 +33833,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: msdos,v 1.217 2026/08/03 08:04:54 christos Exp $
+# $File: msdos,v 1.218 2026/08/28 15:48:22 christos Exp $
 # msdos:  file(1) magic for MS-DOS files
 #
 
@@ -33926,10 +33954,71 @@
 >>>0		default		x
 # other endianity is not supported by magic "use" keyword
 
+
 # Maybe it's a PE?
+>(0x3c.l)	string		PE\0\0
+
+
+# Detect old PE non-COFF executables which are used by:
+# - Windows NT 3.1 ePDK (September 1991, build 196)
+# - Windows NT 3.1 PDK1 (October 1991)
+# - Microsoft C/C++ 7.0
+# These executables have SignatureBytes "PE\0\0" but do not follow the COFF structure
+# This PE structure and field names can be dumped by NT 3.1 PDK1 tools: i386kd.exe, coff.exe, hdr.exe
+# First WORD after SignatureBytes has upper 14 bits reserved which should be 0 and NumberOfSpecialRVAs should be 7
+>>(0x3c.l+4)		ushort&0xfffc	0
+>>>(0x3c.l+108)		lelong		7	PE non-COFF executable
+# OSType
+# 2 - used by Microsoft C/C++ 7.0 files (CL.EXE, C1XX3216.EXE, C13216.EXE, C23216.EXE, C33216.EXE, MS32EM87.DLL, MS32KRNL.DLL)
+>>>>(0x3c.l+8)		uleshort	2	for MS Windows
+# 4 - used by Windows NT 3.1 ePDK / PDK1 files (CMD.EXE, CALC.EXE, BASE.DLL, GDI.DLL, ...)
+>>>>(0x3c.l+8)		uleshort	4
+# SubSystem
+# 1 - NT OS/2 subsystem (LOADER.EXE)
+>>>>>(0x3c.l+10)	uleshort	1	for OS/2
+# 2 - console (CL.EXE, CMD.EXE, FIND.EXE) or GUI (CALC.EXE, CLOCK.EXE)
+>>>>>(0x3c.l+10)	uleshort	2	for MS Windows
+# 4 - native (AUTOCHK.EXE, CSRSS.EXE, SMSS.EXE, OS2SS.EXE)
+>>>>>(0x3c.l+10)	uleshort	4	for MS Windows
+# 5 - NT POSIX subsystem (no sample)
+>>>>>(0x3c.l+10)	uleshort	5	for POSIX
+>>>>>(0x3c.l+10)	default		x
+>>>>>>(0x3c.l+10)	uleshort	x	for Unknown subsystem %#x
+>>>>(0x3c.l+8)		default		x
+>>>>>(0x3c.l+8)		uleshort	x	for Unknown OS %#x
+# ModuleFlags (seems to match module type flags in lx-executable)
+#>>>>(0x3c.l+24)	ulelong		x		\b, ModuleFlags %#x
+>>>>(0x3c.l+24)		ulelong&0x38000	0x08000	(DLL)
+!:ext	dll
+>>>>(0x3c.l+24)		ulelong&0x38000	0x00000
+>>>>>(0x3c.l+8)		ulelong		0x40004	(native)
+!:ext	exe
+>>>>>(0x3c.l+8)		ulelong		!0x40004
+>>>>>>(0x3c.l+24)	ulelong&0x0700	0x0200	(console)
+!:ext	exe
+>>>>>>(0x3c.l+24)	ulelong&0x0700	0x0300	(GUI)
+!:ext	exe
+>>>>>>(0x3c.l+24)	default		x	(EXE)
+!:ext	exe
+# CPUType (seems to match CPU type in lx-executable)
+>>>>(0x3c.l+6)		uleshort	0x02	\b, Intel i386
+>>>>(0x3c.l+6)		uleshort	0x20	\b, Intel i860
+>>>>(0x3c.l+6)		uleshort	0x40	\b, MIPS
+>>>>(0x3c.l+6)		default		x
+>>>>>(0x3c.l+6)		uleshort	x	\b, unknown CPU %#x
+# Endian (there are no samples for non-little-endian)
+#>>>>(0x3c.l+4)		ubyte&0x3	=0x0	(little-endian)
+#>>>>(0x3c.l+4)		ubyte&0x3	=0x1	(PDP-11-endian)
+#>>>>(0x3c.l+4)		ubyte&0x3	=0x3	(big-endian)
+#>>>>(0x3c.l+4)		default		x	(unknown-endian)
+
+# Detect embedded DOSX32 extender inside Microsoft C/C++ 7.0 (CL.EXE, C1XX3216.EXE, C13216.EXE, C23216.EXE, C33216.EXE)
+>>>(8.s*16)		search/0x400	cannot\ find\ file\ :\ MS32KRNL.DLL	\b, MS DOSX32 DOS extender
+
+
+# Standard PE/COFF executables
 # URL:		http://fileformats.archiveteam.org/wiki/Portable_Executable
 # Reference:	https://docs.microsoft.com/de-de/windows/win32/debug/pe-format
->(0x3c.l)	string		PE\0\0
 # Portable Executable has Windows COFF Optional Header which is at least 96 bytes long
 >>(0x3c.l+20)	ushort		>95	PE
 !:mime	application/vnd.microsoft.portable-executable
@@ -48525,7 +48614,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: virtual,v 1.23 2026/04/15 16:56:41 christos Exp $
+# $File: virtual,v 1.24 2026/08/28 15:37:16 christos Exp $
 # From: James Nobis <quel@quelrod.net>
 # Microsoft hard disk images for:
 # Virtual Server
@@ -48870,6 +48959,95 @@
 # Parallels disk image
 0	string	WithoutFreeSpace	Parallels disk image
 0	string	WithouFreSpacExt	Parallels disk image (extended) 
+
+# AaruFormat image
+# Instead of listing every possible media type (CD-R and CD-RW, for
+# instance), broad types are identified by range.
+0	string	AARUFRMT	AaruFormat
+>76	ulelong	0	\b (unknown disk type image)
+>76	ulelong	1	\b (unknown magneto-optical disk image)
+>76	ulelong	2	\b (hard disk image)
+>76	ulelong	3	\b (Microdrive disk image)
+>76	ulelong	4	\b (Zoned hard disk image)
+>76	ulelong	5	\b (USB flash drive image)
+>76	ulelong	6	\b (Unknown tape image)
+>76 ulelong >9
+>>76	ulelong	<40	\b (CD image)
+>76 ulelong >39
+>>76	ulelong	<51	\b (DVD image)
+>76 ulelong >50
+>>76	ulelong	<60	\b (HD DVD image)
+>76 ulelong >59
+>>76	ulelong	<70	\b (Blu-ray image)
+>76	ulelong	>69
+>>76	ulelong	<80	\b (rare optical image)
+>76	ulelong	>79
+>>76	ulelong	<90	\b (LaserDisc image)
+>76	ulelong	>89
+>>76	ulelong	<100	\b (MiniDisc image)
+>76	ulelong	>99
+>>76	ulelong	<110	\b (UDO image)
+>76	ulelong	>109
+>>76	ulelong	<130	\b (PlayStation disc image)
+>76	ulelong	>129
+>>76	ulelong	<150	\b (Xbox disc image)
+>76	ulelong	>149
+>>76	ulelong	<170	\b (Sega game image)
+>76	ulelong	>169
+>>76	ulelong	<180	\b (console game image)
+>76	ulelong	>179
+>>76	ulelong	<310	\b (floppy image)
+>76	ulelong	>309	\b (misc data image)
+# V1 application name is UTF-16LE, V2 is UTF-8
+>72	byte	1
+>>8	lestring16	x	\b, created by %.32s
+>72	byte	2
+>>8	string	x	\b, created by %.64s
+>74	byte	x	\b %d
+>75	byte	x	\b.%d
+!:mime	application/x-aaruformat
+!:ext	aaruf/aaruformat/aif
+
+0	string	DICMFRMT	DiscImageChef image
+>76	ulelong	0	\b (unknown disk type image)
+>76	ulelong	1	\b (unknown magneto-optical disk image)
+>76	ulelong	2	\b (hard disk image)
+>76	ulelong	3	\b (Microdrive disk image)
+>76	ulelong	4	\b (Zoned hard disk image)
+>76	ulelong	5	\b (USB flash drive image)
+>76	ulelong	6	\b (Unknown tape image)
+>76 ulelong >9
+>>76	ulelong	<40	\b (CD image)
+>76 ulelong >39
+>>76	ulelong	<51	\b (DVD image)
+>76 ulelong >50
+>>76	ulelong	<60	\b (HD DVD image)
+>76 ulelong >59
+>>76	ulelong	<70	\b (Blu-ray image)
+>76	ulelong	>69
+>>76	ulelong	<80	\b (rare optical image)
+>76	ulelong	>79
+>>76	ulelong	<90	\b (LaserDisc image)
+>76	ulelong	>89
+>>76	ulelong	<100	\b (MiniDisc image)
+>76	ulelong	>99
+>>76	ulelong	<110	\b (UDO image)
+>76	ulelong	>109
+>>76	ulelong	<130	\b (PlayStation disc image)
+>76	ulelong	>129
+>>76	ulelong	<150	\b (Xbox disc image)
+>76	ulelong	>149
+>>76	ulelong	<170	\b (Sega game image)
+>76	ulelong	>169
+>>76	ulelong	<180	\b (console game image)
+>76	ulelong	>179
+>>76	ulelong	<310	\b (floppy image)
+>76	ulelong	>309	\b (misc data image)
+>8	lestring16	x	\b, created by %.32s
+>74	byte	x	\b %d
+>75	byte	x	\b.%d
+!:mime	application/x-discimagechef
+!:ext	dicf
 
 #------------------------------------------------------------------------------
 # Magdir/virtutech
