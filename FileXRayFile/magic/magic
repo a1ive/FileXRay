@@ -458,7 +458,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: amigaos,v 1.26 2026/04/17 15:13:18 christos Exp $
+# $File: amigaos,v 1.27 2026/10/13 15:56:01 christos Exp $
 # amigaos:  file(1) magic for AmigaOS binary formats:
 
 #
@@ -730,6 +730,13 @@
 0	string		crm2		Crunch-Mania data, LZH, sampled, encrypted
 !:ext	crm
 >6	belong		x		\b, %u bytes uncompressed
+
+#------------------------------------------------------------------------------
+# Autodocs:
+# https://wiki.amigaos.net/wiki/Autodoc_Style_Guide
+#------------------------------------------------------------------------------
+0	string		TABLE\ OF\ CONTENTS	Amiga Autodoc file
+!:ext	doc
 
 #------------------------------------------------------------------------------
 # Magdir/andrew
@@ -8759,7 +8766,7 @@
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
-# $File: blender,v 1.10 2026/01/10 14:38:14 christos Exp $
+# $File: blender,v 1.11 2026/10/13 14:17:13 christos Exp $
 # blender: file(1) magic for Blender 3D related files
 #
 # Native format rule v1.2. For questions use the developers list
@@ -8810,7 +8817,7 @@
 >>10		byte	x		format version %c
 >>>11		byte	x		\b%c
 >>>>13		byte	x		app version %c
->>>>>14		byte	x		\b%c
+>>>>>14		byte	x		\b%c.
 >>>>>>15		byte	x		\b%c
 >>>>>>>16		byte	x		\b%c
 #
@@ -47542,7 +47549,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: tex,v 1.25 2026/06/02 18:16:34 christos Exp $
+# $File: tex,v 1.26 2026/10/13 18:39:56 christos Exp $
 # tex:  file(1) magic for TeX files
 #
 # XXX - needs byte-endian stuff (big-endian and little-endian DVI?)
@@ -47590,10 +47597,13 @@
 !:mime	text/x-texinfo
 0	search/b/1	This\ is\ Info\ file	GNU Info text
 !:mime	text/x-info
-0	search/b/10	INFO-DIR-SECTION	GNU Info text
+!:ext info
+0	search/b/4096	\x0AINFO-DIR-SECTION	GNU Info text
 !:mime	text/x-info
-0	search/b/10	START-INFO-DIR-ENTRY	GNU Info text
+!:ext info
+0	search/b/4096	\x0ASTART-INFO-DIR-ENTRY	GNU Info text
 !:mime	text/x-info
+!:ext info
 
 0	string		%!TEX\040root	TeX Document text
 !:mime	text/x-tex
@@ -52693,7 +52703,7 @@
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
-# $File: zip,v 1.10 2025/10/22 19:31:31 christos Exp $
+# $File: zip,v 1.12 2026/10/13 16:22:27 christos Exp $
 # zip:  file(1) magic for zip files; this is not use
 # Note the version of magic in archive is currently stronger, this is
 # just an example until negative offsets are supported better
