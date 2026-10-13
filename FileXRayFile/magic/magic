@@ -2409,7 +2409,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: apple,v 1.54 2026/06/02 17:32:17 christos Exp $
+# $File: apple,v 1.55 2026/09/20 17:52:25 christos Exp $
 # apple:  file(1) magic for Apple file formats
 #
 0	search/1/t	FiLeStArTfIlEsTaRt	binscii (apple ][) text
@@ -3207,6 +3207,11 @@
 >8	belong		>0		\b, (flags %#x)
 >12	belong		>0		\b, block size: %d
 >24	bequad		>0		\b, capacity: %lld bytes
+
+# Apple Sparse Image Format
+# Located at the start of the file
+0	string		shdw		Apple Sparse Image Format
+>4	belong		>0		\b, version %d
 
 # DMG image
 -512	string	koly
@@ -6814,7 +6819,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: audio,v 1.136 2026/01/23 17:02:27 christos Exp $
+# $File: audio,v 1.137 2026/09/28 19:24:23 christos Exp $
 # audio:  file(1) magic for sound formats (see also "iff")
 #
 # Jan Nicolai Langfeldt (janl@ifi.uio.no), Dan Quinlan (quinlan@yggdrasil.com),
@@ -8162,6 +8167,17 @@
 
 # https://pbat.ch/proj/protrekkr/
 0	string	PROTREKT	Protrekkr Module
+
+# njaTrackerPlus (NTP):
+# https://www.ninjaforce.com/html/products_ninjatrackerplus.php
+0	string	nfc!	NinjaTrackerPlus module
+!:mime	audio/x-ntp
+!:ext	ntp
+>4	byte	x	\b, version %d
+>5	byte	1	\b, mono
+>5	byte	x	\b, %d tracks
+>6	byte	x	\b, %d instruments
+>7	byte	x	\b, %d patterns
 
 #------------------------------------------------------------------------------
 # Magdir/avm
@@ -11703,7 +11719,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: console,v 1.82 2026/06/02 16:59:22 christos Exp $
+# $File: console,v 1.83 2026/10/12 16:16:56 christos Exp $
 # Console game magic
 # Toby Deshane <hac@shoelace.digivill.net>
 
@@ -12208,7 +12224,7 @@
 # Updated version from: David Korth <gerbilsoft@gerbilsoft.com>
 #
 0xC0	bequad	0x24FFAE51699AA221	Nintendo DS ROM image
-!:mime	application/x-nintendo-ds-rom
+!:mime	application/vnd.nintendo.nitro.rom
 >0x00	string	>\0		\b: "%.12s"
 >0x0C	string	x		(%.6s
 >0x1E	byte	x		\b, Rev.%02u)
@@ -12229,7 +12245,7 @@
 # This is also used for loading .nds files using the MSET exploit on 3DS.
 # Reference: https://github.com/devkitPro/ndstool/blob/master/source/ndscreate.cpp
 0xC0	bequad	0xC8604FE201708FE2	Nintendo DS Slot-2 ROM image (PassMe)
-!:mime	application/x-nintendo-ds-rom
+!:mime	application/vnd.nintendo.nitro.rom
 
 #------------------------------------------------------------------------------
 # ngp: file(1) magic for the Neo Geo Pocket (Color) raw ROM format.
@@ -20627,7 +20643,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: games,v 1.40 2026/04/16 20:25:40 christos Exp $
+# $File: games,v 1.41 2026/09/28 20:02:56 christos Exp $
 # games:  file(1) for games
 
 # Fabio Bonelli <fabiobonelli@libero.it>
@@ -20761,8 +20777,18 @@
 0	string	5\x0aSANDRA'S_LADDER		 Quake I save: ddm7 Sandra's ladder
 
 
-0	string	MComprHD	MAME CHD compressed hard disk image,
->12	belong	x		version %u
+0	string	MComprHD	MAME CHD compressed hard disk image
+>12	belong	x		\b, version %u
+>12	belong	>4
+>>16	string	zlib		\b, zlib deflate
+>>16	string	zstd		\b, Zstandard
+>>16	string	huff		\b, Huffman coding
+>>16	string	flac		\b, Free Lossless Audio Codec
+>>16	string	cdzl		\b, zlib deflate for CD-ROM data
+>>16	string	cdzs		\b, Zstandard for CD-ROM data
+>>16	string	cdlz		\b, Lempel-Ziv-Markov chain algorithm/zlib deflate (CD-ROM)
+>>16	string	cdfl		\b, Free Lossless Audio Codec/zlib deflate (CD-ROM)
+>>16	string	avhu		\b, Huffman coding for audio-visual data
 
 # MAME input recordings
 
@@ -41747,7 +41773,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: plan9,v 1.7 2024/02/29 03:42:40 christos Exp $
+# $File: plan9,v 1.8 2026/10/04 20:51:43 christos Exp $
 # plan9:  file(1) magic for AT&T Bell Labs' Plan 9 executables and object files
 # From: "Stefan A. Haubenthal" <polluks@web.de>
 #
@@ -41756,7 +41782,7 @@
 0	belong		0x000001EB	Plan 9 executable, Intel i386
 0	belong		0x00000247	Plan 9 executable, Intel i960
 0	belong		0x000002AB	Plan 9 executable, SPARC
-0	belong		0x00000407	Plan 9 executable, MIPS R3000
+0	belong		0x00000407	Plan 9 executable, MIPS R3000 BE
 0	belong		0x0000048B	Plan 9 executable, AT&T DSP 3210
 0	belong		0x00000517	Plan 9 executable, MIPS R4000 BE
 0	belong		0x000005AB	Plan 9 executable, AMD 29000
@@ -41764,6 +41790,11 @@
 0	belong		0x000006EB	Plan 9 executable, PowerPC
 0	belong		0x00000797	Plan 9 executable, MIPS R4000 LE
 0	belong		0x0000084B	Plan 9 executable, DEC Alpha
+0	belong		0x00000907	Plan 9 executable, MIPS R3000 LE
+0	belong		0x000009CB	Plan 9 executable, SPARC V9
+0	belong		0x00008A97	Plan 9 executable, x86-64
+0	belong		0x00008B6B	Plan 9 executable, 64-bit PowerPC
+0	belong		0x00008C47	Plan 9 executable, ARM aarch64
 
 0	belong		0x3A11013C	Plan 9 object file, MIPS R3000
 0	belong		0x430D013C	Plan 9 object file, AT&T Hobbit
@@ -42843,7 +42874,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: riff,v 1.53 2026/04/16 17:09:52 christos Exp $
+# $File: riff,v 1.54 2026/10/03 18:53:32 christos Exp $
 # riff:  file(1) magic for RIFF format
 # See
 #
@@ -43004,7 +43035,7 @@
 >>>>>15		byte&0x40	=0x00	\b, decoders should clamp
 >0  string  VP8L
 >>8		byte		0x2f	\b, lossless
->>>11		byte		&0x01	\b, with alpha
+>>>12		byte		&0x10	\b, with alpha
 >0  string  VP8X
 >>4		lelong		0x0a
 >>>8		byte		&0x02	\b, animated
@@ -45916,7 +45947,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: sql,v 1.38 2024/12/26 19:14:32 christos Exp $
+# $File: sql,v 1.39 2026/10/12 16:18:39 christos Exp $
 # sql:  file(1) magic for SQL files
 #
 # From: "Marty Leisner" <mleisner@eng.mc.xerox.com>
@@ -46144,6 +46175,7 @@
 >>>68 belong =0x544f4952 (Riot Games patcher)
 >>>68 belong =0x544d5052 (Twinmotion project)
 >>>68 belong =0x43484557 (Chewing IME)
+>>>68 belong =0x4E444442 (NeverSight NeverD database)
 # unknown application ID
 >>>68 default x
 >>>>68 belong !0         \b, application id %u
@@ -47344,6 +47376,52 @@
 
 0	lelong		0x55aa0004		Mountain FileSafe tape backup
 >93	string		x			\b, Volume label: %s
+
+#------------------------------------------------------------------------------
+# Magdir/tarantool
+#------------------------------------------------------------------------------
+
+
+#------------------------------------------------------------------------------
+# $File: tarantool,v 1.1 2026/10/10 15:47:56 christos Exp $
+# tarantool:  file(1) magic for Tarantool database files
+#
+# Tarantool (https://www.tarantool.io/) has its own storage formats.
+# Every file starts with a textual header:
+#
+#	<type>\n
+#	<format version>\n
+#	Version: <tarantool version>\n
+#	Instance: <uuid>\n
+#	[VClock: {...}\n]
+#	[PrevVClock: {...}\n]
+#	\n
+#
+# followed by binary data.  The type is one of SNAP (snapshot),
+# XLOG (write-ahead log), RUN (vinyl data file), INDEX (vinyl page
+# index) or VYLOG (vinyl log).
+#
+# A bare type line is not specific enough: SNAP, RUN and the other
+# words are common, so every entry also matches the mandatory parts
+# of the header that follow it: the format version, the "Version:"
+# line and the "Instance:" (or "Server:" in the old format) line
+# with the instance UUID.  The "bt" flags make the test run for both
+# binary files (real Tarantool data) and header-only text files.
+
+0	regex/bt/512	SNAP\n[0-9]+\\.[0-9]+\nVersion:\ [^\n]+\n(Instance|Server):\ [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n	Tarantool snapshot
+>5	regex/16	[0-9]+\\.[0-9]+		\b, format version %s
+
+0	regex/bt/512	XLOG\n[0-9]+\\.[0-9]+\nVersion:\ [^\n]+\n(Instance|Server):\ [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n	Tarantool write-ahead log
+>5	regex/16	[0-9]+\\.[0-9]+		\b, format version %s
+
+0	regex/bt/512	RUN\n[0-9]+\\.[0-9]+\nVersion:\ [^\n]+\n(Instance|Server):\ [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n	Tarantool vinyl run
+>4	regex/16	[0-9]+\\.[0-9]+		\b, format version %s
+
+0	regex/bt/512	INDEX\n[0-9]+\\.[0-9]+\nVersion:\ [^\n]+\n(Instance|Server):\ [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n	Tarantool vinyl index
+>6	regex/16	[0-9]+\\.[0-9]+		\b, format version %s
+
+0	regex/bt/512	VYLOG\n[0-9]+\\.[0-9]+\nVersion:\ [^\n]+\n(Instance|Server):\ [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n	Tarantool vinyl log
+>6	regex/16	[0-9]+\\.[0-9]+		\b, format version %s
 
 #------------------------------------------------------------------------------
 # Magdir/tcl
