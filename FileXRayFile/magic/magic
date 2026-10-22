@@ -9841,7 +9841,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: cad,v 1.32 2026/04/16 15:06:17 christos Exp $
+# $File: cad,v 1.33 2026/10/22 19:11:42 christos Exp $
 # autocad:  file(1) magic for cad files
 #
 
@@ -10288,6 +10288,14 @@
 >17	byte	0x56				version 2
 >29	leshort	0x1234				\b, little-endian
 >29	beshort	0x1234				\b, big-endian
+
+
+# STEP file
+# Data interchange format common in 3D CAD software.
+# Spec: https://www.loc.gov/preservation/digital/formats/fdd/fdd000448.shtml
+0	string	ISO-10303-21;	STEP File
+!:mime	model/step
+!:ext	step/stp/p21/210/stpnc
 
 #------------------------------------------------------------------------------
 # Magdir/cafebabe
@@ -15578,7 +15586,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: elf,v 1.91 2024/11/09 23:52:23 christos Exp $
+# $File: elf,v 1.92 2026/10/22 15:53:54 christos Exp $
 # elf:  file(1) magic for ELF executables
 #
 # We have to check the byte order flag to see what byte order all the
@@ -15722,7 +15730,10 @@
 >>>36	lelong		&0x00800000	BE8
 >>>36	lelong		&0x00400000	LE8
 >18	leshort		41		Alpha,
+# SH4A no-FPU ELF identification contributed by Artem Novak, 2026.
 >18	leshort		42		Renesas SH,
+>>4	byte		1
+>>>36	lelong&0xff	0x11	SH4A no-FPU,
 >18	leshort		43		SPARC V9,
 >>4	byte		2
 >>>48	use		elf-sparc
@@ -16243,7 +16254,7 @@
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
-# $File: filesystems,v 1.172 2026/08/03 08:07:26 christos Exp $
+# $File: filesystems,v 1.173 2026/10/22 19:10:22 christos Exp $
 # filesystems:  file(1) magic for different filesystems
 #
 0	name	partid
@@ -19037,6 +19048,17 @@
 # https://github.com/douzebis/yb
 0    lelong    0xF2ED5F0B    yblob object store image data
 
+# YBLOB post-quantum object storage
+# The same storage, protected by the FIDO2 application (hmac-secret)
+# https://github.com/douzebis/yb (docs/YBLOB_FORMAT.md, section 11)
+0    lelong    0xF2EDF0B2    yblob post-quantum object store image data
+>5   ubyte     1             \b, store descriptor
+>>6  ubyte     x             \b, version %u
+>>4  ubyte     x             \b, %u chunks
+>5   ubyte     0             \b, chunk
+>>9  ubyte     x             \b, in use
+>>9  default   x             \b, empty
+
 #------------------------------------------------------------------------------
 # Magdir/finger
 #------------------------------------------------------------------------------
@@ -19594,7 +19616,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: fonts,v 1.55 2026/03/24 22:28:58 christos Exp $
+# $File: fonts,v 1.56 2026/10/22 15:55:33 christos Exp $
 # fonts:  file(1) magic for font data
 #
 0	search/1	FONT		ASCII vfont text
@@ -19877,13 +19899,13 @@
 >>12	regex/4l	\^[A-Za-z][A-Za-z2][A-Za-z/\ ][A-Za-z2\ ]	
 #>>>0	ubelong		x	\b, sfnt version %#x
 >>>0	ubelong		!0x4f54544f	TrueType
-# fontkit FK
->>>>12	ubelong		0x464b2020	(FontKit)
 !:mime	font/ttf
 !:apple	????tfil
 # .ttf for TrueType font
 # EUDC.tte created by privat character editor %WINDIR%\system32\eudcedit.exe
 !:ext	ttf/tte
+# fontkit FK
+>>>>12	ubelong		0x464b2020	(FontKit)
 # sfnt version 4F54544Fh~OTTO
 >>>0	ubelong		=0x4f54544f	OpenType
 !:mime	font/otf
@@ -19898,7 +19920,7 @@
 #>>>4	ubeshort	<10		TMIN
 #>>>4	ubeshort	>24		TBIG
 # table directory entries
->>>12	ubelong		!0x464b2020	(FontKit)
+>>>12	ubelong		!0x464b2020
 >>>>12	string		x		\b, 1st "%4.4s"
 
 #	search and display 1st name in sfnt font which is often copyright text
@@ -40449,7 +40471,7 @@
 
 
 #------------------------------------------------------------------------------
-# $File: pdf,v 1.20 2025/11/22 20:59:37 christos Exp $
+# $File: pdf,v 1.21 2026/10/22 15:59:50 christos Exp $
 # pdf:  file(1) magic for Portable Document Format
 #
 
@@ -40462,24 +40484,21 @@
 !:mime	application/pdf
 !:strength +60
 !:ext	pdf
->5	byte		x		\b, version %c
->7	byte		x		\b.%c
+>5	regex		\^[0-9][.][0-9]	\b, version %s
 >0	use		pdf
 
 0	string		\012%PDF-	PDF document
 !:mime	application/pdf
 !:strength +60
 !:ext	pdf
->6	byte		x		\b, version %c
->8	byte		x		\b.%c
+>6	regex		\^[0-9][.][0-9]	\b, version %s
 >0	use		pdf
 
 0	string		\xef\xbb\xbf%PDF-	PDF document (UTF-8)
 !:mime	application/pdf
 !:strength +60
 !:ext	pdf
->6	byte		x		\b, version %c
->8	byte		x		\b.%c
+>8	regex		\^[0-9][.][0-9]	\b, version %s
 >0	use		pdf
 
 # From: Nick Schmalenberger <nick@schmalenberger.us>
@@ -40495,8 +40514,7 @@
 !:mime	application/pdf
 !:strength +60
 !:ext	pdf
->&0	byte		x		\b, version %c
->&2	byte		x		\b.%c
+>&0	regex		\^[0-9][.][0-9]	\b, version %s
 >0	use		pdf
 
 #------------------------------------------------------------------------------
